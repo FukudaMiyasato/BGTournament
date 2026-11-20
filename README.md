@@ -5,7 +5,21 @@ Ranking de un torneo de juegos de mesa.
 - **`/`** — ranking con la foto de cada jugador, de más a menos puntos, y estadísticas (juego más jugado, quién jugó más, quién perdió más, últimas partidas…).
 - **`/configuracion`** — agregar jugadores y juegos (ambos con foto), registrar sesiones con sus partidas (juego, integrantes y puestos), editarlas o borrarlas, y un listado ordenable por jugadas / puntos / perdidas.
 
-Cada partida reparte puntos según el puesto: por defecto **3** al 1.º, **2** al 2.º y **1** al 3.º. Se cambia en **Configuración → Ajustes**. En el ranking solo aparecen quienes jugaron al menos una partida.
+En el ranking solo aparecen quienes jugaron al menos una partida. Un desplegable permite ordenarlo por **Elo** (por defecto), **Victorias**, **Promedio de victoria** o **Puntos**.
+
+### Elo
+
+Todos empiezan en 1000. En cada partida, con los puntajes de antes de jugarla:
+
+- Cada jugador **con puesto** suma como si le hubiera ganado al **mejor puntaje de los que quedaron debajo** (los puestos siguientes y los que no tienen puesto). Ganarle a alguien con más Elo da más.
+- Los que **no tienen puesto** restan como si hubieran perdido contra el **último puesto registrado**.
+- Si todos tienen puesto, el último resta como si hubiera perdido contra el puesto anterior.
+
+La fórmula es la del Elo clásico: `cambio = K × (resultado − esperado)`, con `esperado = 1 / (1 + 10^((rival − propio) / 400))`. K es 32, y 48 en las primeras 5 partidas de cada jugador. En Elo y en promedio de victoria hacen falta 3 partidas para entrar en la clasificación; antes el jugador aparece como "Provisional". Estos valores están en `ELO`, en `lib/stats.ts`.
+
+### Puntos
+
+Además, cada partida reparte puntos según el puesto: por defecto **3** al 1.º, **2** al 2.º y **1** al 3.º. Se cambia en **Configuración → Ajustes**.
 
 ### Sesiones
 

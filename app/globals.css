@@ -67,6 +67,10 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .with-thumb { display: flex; align-items: center; gap: 12px; }
 
 .rank-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; min-height: 34px; font-size: 0.9rem; }
+.rank-bar > .muted { flex: 1; min-width: 0; }
+.mode select { width: auto; padding: 6px 10px; font-size: 0.85rem; }
+.rank-note { font-size: 0.8rem; margin-top: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .change { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .change.up { color: #5fd38d; }
 .change.down { color: var(--danger); }

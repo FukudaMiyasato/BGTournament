@@ -740,6 +740,7 @@ function GameRow({ game, played, act }: { game: Game; played: number; act: Act }
 /* ---------- Listado ---------- */
 
 const SORTS = {
+  elo: "Mejor Elo",
   points: "Más puntos",
   played: "Más jugaron",
   losses: "Más perdieron",
@@ -747,7 +748,7 @@ const SORTS = {
 } as const;
 
 function Listing({ db }: { db: DB }) {
-  const [sort, setSort] = useState<keyof typeof SORTS>("points");
+  const [sort, setSort] = useState<keyof typeof SORTS>("elo");
   const rows = playerStats(db).sort(
     (a, b) => b[sort] - a[sort] || b.points - a.points || a.player.name.localeCompare(b.player.name)
   );
@@ -771,6 +772,7 @@ function Listing({ db }: { db: DB }) {
             <tr>
               <th>#</th>
               <th>Jugador</th>
+              {th("elo", "Elo")}
               {th("played", "Jugadas")}
               {th("points", "Puntos")}
               <th className="num">1.º</th>
@@ -785,6 +787,7 @@ function Listing({ db }: { db: DB }) {
               <tr key={s.player.id}>
                 <td className="muted">{i + 1}</td>
                 <td><span className="who"><Avatar player={s.player} size={32} />{s.player.name}</span></td>
+                <td className="num">{s.played ? Math.round(s.elo) : "—"}</td>
                 <td className="num">{s.played}</td>
                 <td className="num">{s.points}</td>
                 <td className="num">{s.wins}</td>
