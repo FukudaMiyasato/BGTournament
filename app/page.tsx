@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "./ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
-
-const pts = (n: number) => `${n} ${n === 1 ? "punto" : "puntos"}`;
+import { Ranking } from "./ranking";
 
 export default function Home() {
   const { db, error } = useDB();
@@ -24,8 +23,6 @@ export default function Home() {
   const bestRate = [...active]
     .filter((s) => s.played >= 3)
     .sort((a, b) => b.winRate - a.winRate || b.played - a.played)[0];
-  const podium = stats.length >= 3 && stats[0].points > 0 ? stats.slice(0, 3) : [];
-  const rest = podium.length ? stats.slice(3) : stats;
   const maxGame = games[0]?.played ?? 1;
 
   return (
@@ -42,38 +39,7 @@ export default function Home() {
           <Link href="/configuracion" className="btn">Agregar jugadores</Link>
         </div>
       ) : (
-        <>
-          {podium.length > 0 && (
-            <section className="podium">
-              {[podium[1], podium[0], podium[2]].map((s) => (
-                <div key={s.player.id} className={`podium-spot place-${stats.indexOf(s) + 1} rank-${s.rank}`}>
-                  <div className="podium-photo">
-                    <Avatar player={s.player} size={stats.indexOf(s) === 0 ? 132 : 100} />
-                    <span className="medal">{s.rank}</span>
-                  </div>
-                  <strong>{s.player.name}</strong>
-                  <span className="points">{pts(s.points)}</span>
-                </div>
-              ))}
-            </section>
-          )}
-
-          {rest.length > 0 && (
-            <ol className="card ranking">
-              {rest.map((s) => (
-                <li key={s.player.id}>
-                  <span className="pos">{s.rank}</span>
-                  <Avatar player={s.player} size={52} />
-                  <span className="name">
-                    {s.player.name}
-                    <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
-                  </span>
-                  <span className="points">{s.points}<small> pts</small></span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </>
+        <Ranking db={db} />
       )}
 
       {matches.length > 0 && (

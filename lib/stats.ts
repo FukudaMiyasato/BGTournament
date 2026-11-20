@@ -10,11 +10,11 @@ export type PlayerStat = {
 };
 export type GameStat = { game: Game; played: number; topWinner: Player | null; topWins: number };
 
-export function playerStats(db: DB): PlayerStat[] {
+export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[] {
   const map = new Map(
     db.players.map((p) => [p.id, { player: p, played: 0, points: 0, losses: 0, winRate: 0, rank: 0 }])
   );
-  for (const m of db.matches) {
+  for (const m of matches) {
     for (const id of m.playerIds) {
       const s = map.get(id);
       if (!s) continue;
@@ -34,6 +34,23 @@ export function playerStats(db: DB): PlayerStat[] {
     s.rank = i > 0 && list[i - 1].points === s.points ? list[i - 1].rank : i + 1;
   });
   return list;
+}
+
+// Ranking visible: solo quienes jugaron al menos una partida.
+export function ranking(db: DB, matches: Match[] = db.matches): PlayerStat[] {
+  const list = playerStats(db, matches).filter((s) => s.played > 0);
+  list.forEach((s, i) => {
+    s.rank = i > 0 && list[i - 1].points === s.points ? list[i - 1].rank : i + 1;
+  });
+  return list;
+}
+
+// Ranking anterior: el mismo cálculo sin las partidas del último día jugado.
+// No se guarda nada: sale de las fechas de las partidas, así que se corrige solo si editas una.
+export function previousRanking(db: DB): { lastDay: string | null; prev: PlayerStat[] } {
+  const lastDay = db.matches.reduce<string | null>((d, m) => (!d || m.date > d ? m.date : d), null);
+  if (!lastDay) return { lastDay, prev: [] };
+  return { lastDay, prev: ranking(db, db.matches.filter((m) => m.date < lastDay)) };
 }
 
 export function gameStats(db: DB): GameStat[] {

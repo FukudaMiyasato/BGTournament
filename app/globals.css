@@ -66,6 +66,15 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .game-thumb { border-radius: 10px; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); line-height: 1; }
 .with-thumb { display: flex; align-items: center; gap: 12px; }
 
+.rank-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; min-height: 34px; font-size: 0.9rem; }
+.change { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.change.up { color: #5fd38d; }
+.change.down { color: var(--danger); }
+.change.same { color: var(--muted); }
+.change.new { color: var(--accent); }
+.podium-spot, .ranking li { position: relative; }
+.ranking li { background: var(--surface); }
+
 /* Podio */
 .podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 8px; margin-bottom: 20px; }
 .podium-spot { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 20px 8px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); min-width: 0; }
