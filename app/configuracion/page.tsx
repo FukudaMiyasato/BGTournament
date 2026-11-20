@@ -4,11 +4,13 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "../ui";
-import { gameStats, playerStats, sortedMatches } from "@/lib/stats";
-import { DB, Game, Match, Player } from "@/lib/types";
+import { formatDate, gameStats, playerStats, sortedSessions } from "@/lib/stats";
+import { DB, Game, Player, Session } from "@/lib/types";
 import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
+const today = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local
+const newId = () => crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 
 // Recorta al centro y reduce a 400x400 para que la foto pese poco
 async function fileToPhoto(file: File): Promise<string> {
@@ -36,23 +38,30 @@ export default function Config() {
     checkAuth();
   }, []);
 
-  const act: Act = async (body) => {
-    setError("");
-    try {
-      const r = await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = await r.json();
-      if (r.status === 401) await checkAuth();
-      if (!r.ok) throw new Error(j.error || "Error");
-      setDB(j);
-      return true;
-    } catch (e) {
-      setError((e as Error).message);
-      return false;
-    }
+  // Los cambios se envían de uno en uno y en orden, para que los clics rápidos no se pisen
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const act: Act = (body) => {
+    const run = async () => {
+      setError("");
+      try {
+        const r = await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const j = await r.json();
+        if (r.status === 401) await checkAuth();
+        if (!r.ok) throw new Error(j.error || "Error");
+        setDB(j);
+        return true;
+      } catch (e) {
+        setError((e as Error).message);
+        return false;
+      }
+    };
+    const result = queue.current.then(run);
+    queue.current = result;
+    return result;
   };
 
   let content;
@@ -91,7 +100,7 @@ export default function Config() {
         <nav className="tabs">
           {(
             [
-              ["partidas", "Partidas"],
+              ["partidas", "Sesiones"],
               ["jugadores", "Jugadores"],
               ["juegos", "Juegos"],
               ["listado", "Listado"],
@@ -104,7 +113,7 @@ export default function Config() {
           ))}
         </nav>
         {error && <p className="notice error">{error}</p>}
-        {tab === "partidas" && <Matches db={db} act={act} goPlayers={() => setTab("jugadores")} />}
+        {tab === "partidas" && <Sessions db={db} act={act} goPlayers={() => setTab("jugadores")} />}
         {tab === "jugadores" && <Players db={db} act={act} />}
         {tab === "juegos" && <Games db={db} act={act} />}
         {tab === "listado" && <Listing db={db} />}
@@ -132,11 +141,11 @@ export default function Config() {
   );
 }
 
-/* ---------- Partidas ---------- */
+/* ---------- Sesiones ---------- */
 
 function Chips({
-  players, selected, onToggle, trophy,
-}: { players: Player[]; selected: string[]; onToggle: (id: string) => void; trophy?: boolean }) {
+  players, selected, onToggle,
+}: { players: Player[]; selected: string[]; onToggle: (id: string) => void }) {
   return (
     <div className="chips">
       {players.map((p) => {
@@ -145,13 +154,12 @@ function Chips({
           <button
             type="button"
             key={p.id}
-            className={`chip ${on ? (trophy ? "on win" : "on") : ""}`}
+            className={`chip ${on ? "on" : ""}`}
             aria-pressed={on}
             onClick={() => onToggle(p.id)}
           >
             <Avatar player={p} size={28} />
             {p.name}
-            {trophy && on && " 🏆"}
           </button>
         );
       })}
@@ -159,186 +167,244 @@ function Chips({
   );
 }
 
-function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => void }) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [gameName, setGameName] = useState("");
-  const draft = db.publishedSeason + 1; // temporada en preparación
-  const maxSeason = Math.max(draft, ...db.matches.map((m) => m.season));
-  const [season, setSeason] = useState<number | null>(null); // null = la que se está preparando
-  const [playerIds, setPlayerIds] = useState<string[]>([]);
-  const [winnerIds, setWinnerIds] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  const players = [...db.players].sort((a, b) => a.name.localeCompare(b.name));
-  const playerById = new Map(db.players.map((p) => [p.id, p]));
-  const gameById = new Map(db.games.map((g) => [g.id, g]));
-
-  const reset = () => {
-    setEditing(null);
-    setGameName("");
-    setSeason(null);
-    setPlayerIds([]);
-    setWinnerIds([]);
-  };
-  const edit = (m: Match) => {
-    setEditing(m.id);
-    setGameName(gameById.get(m.gameId)?.name ?? "");
-    setSeason(m.season);
-    setPlayerIds(m.playerIds);
-    setWinnerIds(m.winnerIds);
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-  const togglePlayer = (id: string) => {
-    if (playerIds.includes(id)) {
-      setPlayerIds(playerIds.filter((x) => x !== id));
-      setWinnerIds(winnerIds.filter((x) => x !== id));
-    } else setPlayerIds([...playerIds, id]);
-  };
-  const toggleWinner = (id: string) =>
-    setWinnerIds(winnerIds.includes(id) ? winnerIds.filter((x) => x !== id) : [...winnerIds, id]);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const ok = await act({ action: "saveMatch", id: editing, gameName, season: season ?? draft, playerIds, winnerIds });
-    setBusy(false);
-    if (ok) reset();
-  };
-
-  const seasons = [...new Set(db.matches.map((m) => m.season))].sort((a, b) => b - a);
-  const draftCount = db.matches.filter((m) => m.season === draft).length;
+function Sessions({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => void }) {
+  const [date, setDate] = useState(today());
+  const sessions = sortedSessions(db);
 
   return (
     <>
-      <div className="card season-card">
-        <div className="grow">
-          <strong>Temporada {draft} · en preparación</strong>
-          <div className="muted">
-            {draftCount} {draftCount === 1 ? "partida cargada" : "partidas cargadas"}. No cuenta en el
-            ranking público hasta que la subas.
-            {db.publishedSeason > 0 && ` Última subida: temporada ${db.publishedSeason}.`}
-          </div>
-        </div>
-        {db.publishedSeason > 0 && (
-          <button
-            className="btn ghost small"
-            onClick={() =>
-              confirm(`¿Deshacer la subida de la temporada ${db.publishedSeason}? Dejará de contar en el ranking público.`) &&
-              act({ action: "unpublishSeason" })
-            }
-          >
-            Deshacer subida {db.publishedSeason}
-          </button>
-        )}
-        <button
-          className="btn"
-          disabled={draftCount === 0}
-          onClick={() =>
-            confirm(`¿Subir la temporada ${draft}? Sus puntos se sumarán al ranking público.`) &&
-            act({ action: "publishSeason" })
-          }
-        >
-          Subir temporada {draft}
-        </button>
-      </div>
-
-      <form className="card form" onSubmit={submit} ref={formRef}>
-        <h2>{editing ? "Editar partida" : "Nueva partida"}</h2>
-        {players.length === 0 ? (
+      <form
+        className="card form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await act({ action: "addSession", date });
+        }}
+      >
+        <h2>Nueva sesión</h2>
+        {db.players.length === 0 ? (
           <p className="muted">
             Primero agrega jugadores.{" "}
             <button type="button" className="link" onClick={goPlayers}>Ir a Jugadores</button>
           </p>
         ) : (
-          <>
-            <div className="row">
-              <label className="grow">
-                Juego
-                <input
-                  list="games"
-                  value={gameName}
-                  onChange={(e) => setGameName(e.target.value)}
-                  placeholder="Ej. Catan (si es nuevo, se registra solo)"
-                  required
-                />
-                <datalist id="games">
-                  {db.games.map((g) => <option key={g.id} value={g.name} />)}
-                </datalist>
-              </label>
-              <label>
-                Temporada
-                <select value={season ?? draft} onChange={(e) => setSeason(Number(e.target.value))}>
-                  {Array.from({ length: maxSeason }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n}{n === draft ? " (en preparación)" : n < draft ? " (subida)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="field">
-              <span>¿Quiénes jugaron? <em>({playerIds.length})</em></span>
-              <Chips players={players} selected={playerIds} onToggle={togglePlayer} />
-            </div>
-            {playerIds.length > 0 && (
-              <div className="field">
-                <span>¿Quiénes ganaron? <em>(1 punto cada uno)</em></span>
-                <Chips
-                  players={players.filter((p) => playerIds.includes(p.id))}
-                  selected={winnerIds}
-                  onToggle={toggleWinner}
-                  trophy
-                />
-              </div>
-            )}
-            <div className="row">
-              <button className="btn" disabled={busy || playerIds.length === 0}>
-                {editing ? "Guardar cambios" : "Registrar partida"}
-              </button>
-              {editing && <button type="button" className="btn ghost" onClick={reset}>Cancelar</button>}
-            </div>
-          </>
+          <div className="row">
+            <label>
+              Fecha de la sesión
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </label>
+            <button className="btn">＋ Agregar sesión</button>
+          </div>
         )}
       </form>
 
-      {db.matches.length === 0 && <p className="muted" style={{ marginTop: 24 }}>Aún no hay partidas registradas.</p>}
-      {seasons.map((n) => (
-        <section key={n}>
-          <h2>
-            Temporada {n} · {n <= db.publishedSeason ? "subida" : n === draft ? "en preparación" : "sin subir"}
-          </h2>
-          <ul className="card list">
-            {sortedMatches(db).filter((m) => m.season === n).map((m) => (
-              <li key={m.id} className={editing === m.id ? "editing" : ""}>
-                <div className="grow">
-                  <strong>{gameById.get(m.gameId)?.name ?? "—"}</strong>
-                  <div className="mini-players">
-                    {m.playerIds.map((id) => {
-                      const p = playerById.get(id);
-                      if (!p) return null;
-                      const won = m.winnerIds.includes(id);
-                      return (
-                        <span key={id} className={won ? "won" : ""}>
-                          {won && "🏆 "}{p.name}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-                <button className="btn ghost small" onClick={() => edit(m)}>Editar</button>
-                <button
-                  className="btn danger small"
-                  onClick={() => confirm("¿Borrar esta partida?") && act({ action: "deleteMatch", id: m.id })}
-                >
-                  Borrar
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {sessions.length === 0 && (
+        <p className="muted" style={{ marginTop: 24 }}>Aún no hay sesiones.</p>
+      )}
+      {sessions
+        .map((session, i) => <SessionCard key={session.id} session={session} number={i + 1} db={db} act={act} />)
+        .reverse()}
     </>
+  );
+}
+
+// Una partida mientras se edita en su fila
+type Row = { id: string; gameName: string; playerIds: string[]; places: string[] };
+
+function SessionCard({ session, number, db, act }: { session: Session; number: number; db: DB; act: Act }) {
+  // Filas con cambios aún no confirmados por el servidor (o nuevas sin completar): se muestran al instante
+  const [local, setLocal] = useState<Record<string, Row>>({});
+  const version = useRef<Record<string, number>>({});
+  const gameById = new Map(db.games.map((g) => [g.id, g]));
+  const saved: Row[] = db.matches
+    .filter((m) => m.sessionId === session.id)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((m) => ({ id: m.id, gameName: gameById.get(m.gameId)?.name ?? "", playerIds: m.playerIds, places: m.places }));
+  const savedIds = new Set(saved.map((r) => r.id));
+  const rows = [...saved.map((r) => local[r.id] ?? r), ...Object.values(local).filter((r) => !savedIds.has(r.id))];
+  const players = [...db.players].sort((a, b) => a.name.localeCompare(b.name));
+  const complete = (row: Row) => !!row.gameName && row.playerIds.length > 0;
+
+  const forget = (id: string) =>
+    setLocal((l) => Object.fromEntries(Object.entries(l).filter(([key]) => key !== id)));
+  const change = async (row: Row) => {
+    setLocal((l) => ({ ...l, [row.id]: row }));
+    if (!complete(row)) return; // se guarda sola en cuanto tiene juego e integrantes
+    const v = (version.current[row.id] = (version.current[row.id] ?? 0) + 1);
+    const ok = await act({ action: "saveMatch", sessionId: session.id, ...row });
+    // Solo el último cambio de la fila decide: confirmado → manda el servidor; fallido → se descarta si ya existía
+    if (version.current[row.id] === v && (ok || savedIds.has(row.id))) forget(row.id);
+  };
+  const remove = (row: Row) => {
+    if (!savedIds.has(row.id)) return forget(row.id);
+    if (confirm(`¿Borrar la partida de ${row.gameName}?`)) {
+      forget(row.id);
+      act({ action: "deleteMatch", id: row.id });
+    }
+  };
+  // La fila nueva hereda los integrantes de la anterior: en una sesión suelen repetirse
+  const addRow = () => {
+    const id = newId();
+    setLocal((l) => ({ ...l, [id]: { id, gameName: "", playerIds: rows.at(-1)?.playerIds ?? [], places: [] } }));
+  };
+
+  return (
+    <section className={`card session ${session.published ? "" : "draft"}`}>
+      <header className="session-head">
+        <strong>Sesión {number}</strong>
+        <input
+          type="date"
+          className="inline"
+          aria-label="Fecha de la sesión"
+          value={session.date}
+          onChange={(e) => e.target.value && act({ action: "updateSession", id: session.id, date: e.target.value })}
+        />
+        <span className={`badge ${session.published ? "ok" : ""}`}>
+          {session.published ? "Subida" : "En preparación"}
+        </span>
+        <span className="grow" />
+        {session.published ? (
+          <button
+            className="btn ghost small"
+            onClick={() =>
+              confirm(`¿Deshacer la subida de la sesión ${number}? Dejará de contar en el ranking público.`) &&
+              act({ action: "updateSession", id: session.id, published: false })
+            }
+          >
+            Deshacer subida
+          </button>
+        ) : (
+          <button
+            className="btn small"
+            disabled={saved.length === 0}
+            onClick={() =>
+              confirm(`¿Subir la sesión ${number} (${formatDate(session.date)})? Sus puntos se sumarán al ranking público.`) &&
+              act({ action: "updateSession", id: session.id, published: true })
+            }
+          >
+            Subir sesión
+          </button>
+        )}
+        <button
+          className="btn danger small"
+          onClick={() =>
+            confirm(`¿Borrar la sesión ${number} y sus ${saved.length} partidas?`) &&
+            act({ action: "deleteSession", id: session.id })
+          }
+        >
+          Borrar
+        </button>
+      </header>
+
+      {rows.map((row) => (
+        <MatchRow
+          key={row.id}
+          row={row}
+          incomplete={!complete(row)}
+          players={players}
+          games={db.games}
+          onChange={change}
+          onDelete={() => remove(row)}
+        />
+      ))}
+
+      <div className="session-foot">
+        <button className="btn ghost small" onClick={addRow}>＋ Agregar partida</button>
+        {rows.length > 0 && (
+          <span className="muted">
+            Toca las caritas en orden: la primera es el 1.º (gana el punto), la siguiente el 2.º, y así. Toca
+            de nuevo para quitar un puesto.
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MatchRow({
+  row, incomplete, players, games, onChange, onDelete,
+}: {
+  row: Row; incomplete: boolean; players: Player[]; games: Game[];
+  onChange: (row: Row) => void; onDelete: () => void;
+}) {
+  const [name, setName] = useState(row.gameName);
+  const [base, setBase] = useState(row.gameName);
+  const [picking, setPicking] = useState(row.playerIds.length === 0);
+  if (base !== row.gameName) {
+    // El servidor puede devolver el nombre ya existente del juego (p. ej. otra capitalización)
+    setBase(row.gameName);
+    setName(row.gameName);
+  }
+
+  const commitName = () => {
+    const next = name.trim();
+    if (next !== row.gameName) onChange({ ...row, gameName: next });
+  };
+  const togglePlayer = (id: string) =>
+    onChange(
+      row.playerIds.includes(id)
+        ? { ...row, playerIds: row.playerIds.filter((x) => x !== id), places: row.places.filter((x) => x !== id) }
+        : { ...row, playerIds: [...row.playerIds, id] }
+    );
+  // Clic en una carita: toma el siguiente puesto libre; si ya tenía puesto, lo suelta y los demás suben
+  const togglePlace = (id: string) =>
+    onChange({
+      ...row,
+      places: row.places.includes(id) ? row.places.filter((x) => x !== id) : [...row.places, id],
+    });
+
+  return (
+    <div className="match-row">
+      <input
+        className="game-input"
+        list="games"
+        value={name}
+        placeholder="Juego"
+        aria-label="Juego"
+        onChange={(e) => setName(e.target.value)}
+        onBlur={commitName}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+      <datalist id="games">
+        {games.map((g) => <option key={g.id} value={g.name} />)}
+      </datalist>
+
+      <div className="faces grow">
+        {players.filter((p) => row.playerIds.includes(p.id)).map((p) => {
+          const place = row.places.indexOf(p.id) + 1;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className={`face ${place ? `placed p${Math.min(place, 4)}` : ""}`}
+              title={place ? `${p.name}: ${place}.º puesto (clic para quitar)` : `${p.name}: clic para darle el siguiente puesto`}
+              onClick={() => togglePlace(p.id)}
+            >
+              <Avatar player={p} size={44} />
+              {place > 0 && <span className="place">{place}</span>}
+              <span className="face-name">{p.name}</span>
+            </button>
+          );
+        })}
+        {row.playerIds.length === 0 && <span className="muted">Elige los integrantes →</span>}
+      </div>
+
+      <button
+        type="button"
+        className={`btn ghost small ${picking ? "active" : ""}`}
+        aria-expanded={picking}
+        onClick={() => setPicking(!picking)}
+      >
+        👥 Integrantes
+      </button>
+      <button type="button" className="btn danger small" aria-label="Borrar partida" onClick={onDelete}>✕</button>
+
+      {picking && (
+        <div className="picker">
+          <Chips players={players} selected={row.playerIds} onToggle={togglePlayer} />
+        </div>
+      )}
+      {incomplete && <small className="muted hint">Se guarda sola al tener juego e integrantes.</small>}
+    </div>
   );
 }
 
@@ -661,6 +727,8 @@ function Listing({ db }: { db: DB }) {
               <th>Jugador</th>
               {th("played", "Jugadas")}
               {th("points", "Puntos")}
+              <th className="num">2.º</th>
+              <th className="num">3.º</th>
               {th("losses", "Perdidas")}
               {th("winRate", "% ganadas")}
             </tr>
@@ -672,6 +740,8 @@ function Listing({ db }: { db: DB }) {
                 <td><span className="who"><Avatar player={s.player} size={32} />{s.player.name}</span></td>
                 <td className="num">{s.played}</td>
                 <td className="num">{s.points}</td>
+                <td className="num">{s.seconds}</td>
+                <td className="num">{s.thirds}</td>
                 <td className="num">{s.losses}</td>
                 <td className="num">{s.played ? `${Math.round(s.winRate * 100)}%` : "—"}</td>
               </tr>

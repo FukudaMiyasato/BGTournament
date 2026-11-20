@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "./ui";
-import { gameStats, playerStats, sortedMatches } from "@/lib/stats";
+import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
 import { Ranking } from "./ranking";
 
 export default function Home() {
@@ -16,6 +16,7 @@ export default function Home() {
   const matches = sortedMatches(db);
   const playerById = new Map(db.players.map((p) => [p.id, p]));
   const gameById = new Map(db.games.map((g) => [g.id, g]));
+  const sessionById = new Map(db.sessions.map((x) => [x.id, x]));
 
   const active = stats.filter((s) => s.played > 0);
   const mostPlayed = [...active].sort((a, b) => b.played - a.played)[0];
@@ -111,10 +112,11 @@ export default function Home() {
                     <div className="grow">
                     <div className="bar-head">
                       <span>{gameById.get(m.gameId)?.name ?? "—"}</span>
-                      <span className="muted">Temporada {m.season}</span>
+                      <span className="muted">{formatDate(sessionById.get(m.sessionId)?.date ?? "")}</span>
                     </div>
                     <small className="muted">
-                      🏆 {m.winnerIds.map((id) => playerById.get(id)?.name).filter(Boolean).join(", ") || "Sin ganador"}
+                      🏆 {playerById.get(m.places[0])?.name ?? "Sin ganador"}
+                      {m.places[1] && playerById.get(m.places[1]) && ` · 2.º ${playerById.get(m.places[1])!.name}`}
                       {" · "}{m.playerIds.length} jugadores
                     </small>
                     </div>

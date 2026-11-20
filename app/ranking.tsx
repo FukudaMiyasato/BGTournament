@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "./ui";
-import { PlayerStat, previousRanking, ranking } from "@/lib/stats";
+import { PlayerStat, formatDate, previousRanking, ranking } from "@/lib/stats";
 import { DB } from "@/lib/types";
 
 const pts = (n: number) => `${n} ${n === 1 ? "punto" : "puntos"}`;
@@ -23,8 +23,8 @@ export function Ranking({ db }: { db: DB }) {
   const before = useRef<Map<string, DOMRect> | null>(null);
 
   const now = ranking(db);
-  const prev = previousRanking(db);
-  const season = db.publishedSeason;
+  const { last, number, prev } = previousRanking(db);
+  const title = last ? `Sesión ${number} · ${formatDate(last.date)}` : "";
   const prevById = new Map(prev.map((s) => [s.player.id, s]));
   const rows = view === "now" ? now : prev;
   const showChange = view === "now" && prev.length > 0;
@@ -76,7 +76,7 @@ export function Ranking({ db }: { db: DB }) {
   if (now.length === 0)
     return (
       <div className="card center empty">
-        <p>Aún no hay temporadas subidas. El ranking aparecerá con la primera.</p>
+        <p>Aún no hay sesiones subidas. El ranking aparecerá con la primera.</p>
       </div>
     );
 
@@ -88,10 +88,10 @@ export function Ranking({ db }: { db: DB }) {
       <div className="rank-bar">
         <span className="muted">
           {view === "prev"
-            ? season > 1 ? `Así quedó la temporada ${season - 1}…` : "Antes de la temporada 1…"
+            ? number > 1 ? `Así estaba antes de la sesión ${number}…` : "Antes de la primera sesión…"
             : showChange
-              ? `Temporada ${season} · cambios respecto a la temporada ${season - 1}`
-              : `Temporada ${season}`}
+              ? `${title} · cambios respecto a la sesión anterior`
+              : title}
         </span>
         <button className="btn small" onClick={animate} disabled={busy}>▶ Animar</button>
       </div>
