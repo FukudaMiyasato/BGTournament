@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { signIn, signOut } from "next-auth/react";
 import { Avatar, useDB } from "../ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
 import { DB, Match, Player } from "@/lib/types";
+import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
 const today = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local
@@ -23,12 +25,12 @@ async function fileToPhoto(file: File): Promise<string> {
 
 export default function Config() {
   const { db, setDB, error: loadError } = useDB();
-  const [auth, setAuth] = useState<{ authed: boolean; configured: boolean } | null>(null);
+  const [auth, setAuth] = useState<Me | null>(null);
   const [tab, setTab] = useState<"partidas" | "jugadores" | "juegos" | "listado">("partidas");
   const [error, setError] = useState("");
 
   const checkAuth = () =>
-    fetch("/api/login")
+    fetch("/api/me", { cache: "no-store" })
       .then((r) => r.json())
       .then(setAuth);
   useEffect(() => {
@@ -60,11 +62,30 @@ export default function Config() {
   else if (!auth.configured)
     content = (
       <p className="notice error">
-        Falta definir la variable de entorno <code>ADMIN_PASSWORD</code> en Vercel para poder
-        entrar a configuración.
+        Falta configurar el login con Google en Vercel: define <code>AUTH_SECRET</code>,{" "}
+        <code>AUTH_GOOGLE_ID</code>, <code>AUTH_GOOGLE_SECRET</code> y <code>ADMIN_EMAILS</code>.
       </p>
     );
-  else if (!auth.authed) content = <Login onDone={checkAuth} />;
+  else if (!auth.email && !auth.open)
+    content = (
+      <div className="card form login center">
+        <p className="muted">Solo los administradores pueden entrar a configuración.</p>
+        <button className="btn" onClick={() => signIn("google", { callbackUrl: "/configuracion" })}>
+          Entrar con Google
+        </button>
+      </div>
+    );
+  else if (!auth.isAdmin)
+    content = (
+      <div className="card form login center">
+        <p>
+          <strong>{auth.email}</strong> no es una cuenta administradora.
+        </p>
+        <button className="btn ghost" onClick={() => signOut({ callbackUrl: "/configuracion" })}>
+          Cerrar sesión
+        </button>
+      </div>
+    );
   else
     content = (
       <>
@@ -94,35 +115,17 @@ export default function Config() {
     <main className="page">
       <header className="top">
         <h1>⚙️ Configuración</h1>
-        <Link href="/" className="btn ghost small">Ver ranking</Link>
+        <div className="row">
+          {auth?.email && auth.isAdmin && (
+            <button className="btn ghost small" title={auth.email} onClick={() => signOut({ callbackUrl: "/" })}>
+              Cerrar sesión
+            </button>
+          )}
+          <Link href="/" className="btn ghost small">Ver ranking</Link>
+        </div>
       </header>
       {content}
     </main>
-  );
-}
-
-function Login({ onDone }: { onDone: () => void }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    const r = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    if (r.ok) onDone();
-    else setError("Contraseña incorrecta");
-  };
-  return (
-    <form className="card form login" onSubmit={submit}>
-      <label>
-        Contraseña
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
-      </label>
-      {error && <p className="notice error">{error}</p>}
-      <button className="btn">Entrar</button>
-    </form>
   );
 }
 

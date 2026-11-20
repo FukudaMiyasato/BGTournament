@@ -1,33 +1,29 @@
-import { createHmac, timingSafeEqual } from "crypto";
-import type { NextRequest } from "next/server";
+import { auth } from "@/auth";
 
-export const COOKIE = "bgt_admin";
+export type Me = {
+  configured: boolean; // login con Google configurado (o modo local abierto)
+  open: boolean; // modo local sin login
+  email: string | null;
+  isAdmin: boolean;
+};
 
-// Sin ADMIN_PASSWORD: abierto en local, bloqueado en Vercel.
-export function passwordRequired() {
-  return !!process.env.ADMIN_PASSWORD || !!process.env.VERCEL;
-}
+const googleReady = () =>
+  !!process.env.AUTH_SECRET && !!process.env.AUTH_GOOGLE_ID && !!process.env.AUTH_GOOGLE_SECRET;
 
-export function tokenFor(password: string) {
-  return createHmac("sha256", password).update("bgt-admin-session").digest("hex");
-}
+// Correos administradores: ADMIN_EMAILS="uno@gmail.com, otro@gmail.com"
+const adminEmails = () =>
+  (process.env.ADMIN_EMAILS ?? "")
+    .split(/[,;\s]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
 
-function safeEqual(a: string, b: string) {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-}
-
-export function checkPassword(input: string) {
-  const pw = process.env.ADMIN_PASSWORD;
-  if (!pw) return false;
-  return safeEqual(tokenFor(input), tokenFor(pw));
-}
-
-export function isAdmin(req: NextRequest) {
-  if (!passwordRequired()) return true;
-  const pw = process.env.ADMIN_PASSWORD;
-  if (!pw) return false;
-  const c = req.cookies.get(COOKIE)?.value;
-  return !!c && safeEqual(c, tokenFor(pw));
+export async function getMe(): Promise<Me> {
+  if (!googleReady()) {
+    // Sin Google configurado: abierto en local, bloqueado en Vercel.
+    const open = !process.env.VERCEL;
+    return { configured: open, open, email: null, isAdmin: open };
+  }
+  const session = await auth();
+  const email = session?.user?.email?.toLowerCase() ?? null;
+  return { configured: true, open: false, email, isAdmin: !!email && adminEmails().includes(email) };
 }

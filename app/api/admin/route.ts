@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { isAdmin } from "@/lib/auth";
+import { getMe } from "@/lib/auth";
 import { deletePhoto, loadDB, saveDB, savePhoto } from "@/lib/store";
 import { DB } from "@/lib/types";
 
@@ -120,7 +120,7 @@ async function apply(db: DB, b: Body) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) return Response.json({ error: "No autorizado" }, { status: 401 });
+  if (!(await getMe()).isAdmin) return Response.json({ error: "No autorizado" }, { status: 401 });
   try {
     const body = (await req.json()) as Body;
     const db = await loadDB();

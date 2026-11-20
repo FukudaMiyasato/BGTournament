@@ -11,8 +11,21 @@ Cada ganador de una partida suma **1 punto**.
 
 1. Importa este repositorio en Vercel.
 2. En el proyecto: **Storage → Create Database → Upstash (Redis)** y conéctala al proyecto. Eso crea las variables `KV_REST_API_URL` y `KV_REST_API_TOKEN`.
-3. En **Settings → Environment Variables** agrega `ADMIN_PASSWORD` con la contraseña para entrar a `/configuracion`.
+3. Crea las credenciales de Google (ver abajo) y agrega en **Settings → Environment Variables**:
+   - `AUTH_SECRET` — un texto aleatorio largo (`openssl rand -base64 33`).
+   - `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET` — el cliente OAuth de Google.
+   - `ADMIN_EMAILS` — los correos administradores, separados por coma. Solo ellos pueden entrar a `/configuracion`.
 4. Vuelve a desplegar (Redeploy) para que tome las variables.
+
+### Credenciales de Google
+
+1. Entra a [Google Cloud Console → APIs y servicios → Credenciales](https://console.cloud.google.com/apis/credentials) (crea un proyecto si no tienes).
+2. Configura la pantalla de consentimiento OAuth (tipo **Externo**) y publícala, o agrega los correos administradores como usuarios de prueba.
+3. **Crear credenciales → ID de cliente de OAuth → Aplicación web**.
+4. En **URIs de redireccionamiento autorizados** agrega:
+   - `https://TU-DOMINIO.vercel.app/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google` (para probar en local)
+5. Copia el ID de cliente y el secreto a las variables de entorno.
 
 ## Desarrollo local
 
@@ -21,4 +34,4 @@ npm install
 npm run dev
 ```
 
-En local no hace falta Redis ni contraseña: los datos se guardan en la carpeta `.data/` (ignorada por git). Si defines `ADMIN_PASSWORD` en `.env.local`, también se pedirá en local.
+En local no hace falta Redis: los datos se guardan en la carpeta `.data/` (ignorada por git). Si no defines las variables de Google, `/configuracion` queda abierta en local; para probar el login copia `.env.example` a `.env.local` y complétalo.
