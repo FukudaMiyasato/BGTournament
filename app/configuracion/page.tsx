@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
-import { Avatar, DefaultPhoto, useDB } from "../ui";
+import { Avatar, DefaultPhoto, GameThumb, useDB } from "../ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
-import { DB, Match, Player } from "@/lib/types";
+import { DB, Game, Match, Player } from "@/lib/types";
 import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
@@ -484,6 +484,8 @@ function Data({ act }: { act: Act }) {
 
 function Games({ db, act }: { db: DB; act: Act }) {
   const [name, setName] = useState("");
+  const [photo, setPhoto] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const stats = gameStats(db);
   return (
     <>
@@ -491,7 +493,11 @@ function Games({ db, act }: { db: DB; act: Act }) {
         className="card form"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (await act({ action: "addGame", name })) setName("");
+          if (await act({ action: "addGame", name, photo: photo || undefined })) {
+            setName("");
+            setPhoto("");
+            if (fileRef.current) fileRef.current.value = "";
+          }
         }}
       >
         <h2>Nuevo juego</h2>
@@ -500,13 +506,27 @@ function Games({ db, act }: { db: DB; act: Act }) {
             Nombre
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
           </label>
-          <button className="btn">Agregar juego</button>
+          <label>
+            Foto (opcional)
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                setPhoto(f ? await fileToPhoto(f).catch(() => "") : "");
+              }}
+            />
+          </label>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {photo && <img className="game-thumb" src={photo} alt="" style={{ width: 56, height: 56 }} />}
         </div>
+        <div className="row"><button className="btn">Agregar juego</button></div>
       </form>
       <h2>Juegos ({db.games.length})</h2>
       <ul className="card list">
         {stats.map((s) => (
-          <GameRow key={s.game.id} id={s.game.id} name={s.game.name} played={s.played} act={act} />
+          <GameRow key={s.game.id} game={s.game} played={s.played} act={act} />
         ))}
         {stats.length === 0 && <li className="muted">Aún no hay juegos.</li>}
       </ul>
@@ -514,25 +534,46 @@ function Games({ db, act }: { db: DB; act: Act }) {
   );
 }
 
-function GameRow({ id, name: initial, played, act }: { id: string; name: string; played: number; act: Act }) {
-  const [name, setName] = useState(initial);
+function GameRow({ game, played, act }: { game: Game; played: number; act: Act }) {
+  const [name, setName] = useState(game.name);
+  const fileRef = useRef<HTMLInputElement>(null);
   return (
     <li>
+      <GameThumb game={game} size={52} />
       <input
         className="grow inline"
         value={name}
         aria-label="Nombre del juego"
         onChange={(e) => setName(e.target.value)}
         onBlur={async () => {
-          if (name.trim() === initial) return;
-          if (!(await act({ action: "updateGame", id, name }))) setName(initial);
+          if (name.trim() === game.name) return;
+          if (!(await act({ action: "updateGame", id: game.id, name }))) setName(game.name);
         }}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
       <span className="muted">{played} {played === 1 ? "partida" : "partidas"}</span>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (f) await act({ action: "updateGame", id: game.id, photo: await fileToPhoto(f) });
+          e.target.value = "";
+        }}
+      />
+      <button className="btn ghost small" onClick={() => fileRef.current?.click()}>
+        {game.photoV ? "Cambiar foto" : "Subir foto"}
+      </button>
+      {!!game.photoV && (
+        <button className="btn ghost small" onClick={() => act({ action: "updateGame", id: game.id, removePhoto: true })}>
+          Quitar foto
+        </button>
+      )}
       <button
         className="btn danger small"
-        onClick={() => confirm(`¿Borrar ${initial}?`) && act({ action: "deleteGame", id })}
+        onClick={() => confirm(`¿Borrar ${game.name}?`) && act({ action: "deleteGame", id: game.id })}
       >
         Borrar
       </button>

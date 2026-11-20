@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Avatar, DefaultPhoto, useDB } from "./ui";
+import { Avatar, DefaultPhoto, GameThumb, useDB } from "./ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
 
 const pts = (n: number) => `${n} ${n === 1 ? "punto" : "puntos"}`;
@@ -88,7 +88,7 @@ export default function Home() {
             {games[0] && (
               <div className="card tile">
                 <span className="label">Juego más jugado</span>
-                <strong>{games[0].game.name}</strong>
+                <strong className="who"><GameThumb game={games[0].game} size={32} />{games[0].game.name}</strong>
                 <span className="muted">{games[0].played} {games[0].played === 1 ? "vez" : "veces"}</span>
               </div>
             )}
@@ -120,15 +120,18 @@ export default function Home() {
               <h2>Juegos</h2>
               <ul className="card bars">
                 {games.map((g) => (
-                  <li key={g.game.id}>
-                    <div className="bar-head">
-                      <span>{g.game.name}</span>
-                      <span className="muted">{g.played}</span>
+                  <li key={g.game.id} className="with-thumb">
+                    <GameThumb game={g.game} size={44} />
+                    <div className="grow">
+                      <div className="bar-head">
+                        <span>{g.game.name}</span>
+                        <span className="muted">{g.played}</span>
+                      </div>
+                      <div className="bar"><i style={{ width: `${(g.played / maxGame) * 100}%` }} /></div>
+                      {g.topWinner && (
+                        <small className="muted">Más ganador: {g.topWinner.name} ({g.topWins})</small>
+                      )}
                     </div>
-                    <div className="bar"><i style={{ width: `${(g.played / maxGame) * 100}%` }} /></div>
-                    {g.topWinner && (
-                      <small className="muted">Más ganador: {g.topWinner.name} ({g.topWins})</small>
-                    )}
                   </li>
                 ))}
               </ul>
@@ -137,7 +140,9 @@ export default function Home() {
               <h2>Últimas partidas</h2>
               <ul className="card recent">
                 {matches.slice(0, 8).map((m) => (
-                  <li key={m.id}>
+                  <li key={m.id} className="with-thumb">
+                    {gameById.get(m.gameId) && <GameThumb game={gameById.get(m.gameId)!} size={44} />}
+                    <div className="grow">
                     <div className="bar-head">
                       <span>{gameById.get(m.gameId)?.name ?? "—"}</span>
                       <span className="muted">{formatDate(m.date)}</span>
@@ -146,6 +151,7 @@ export default function Home() {
                       🏆 {m.winnerIds.map((id) => playerById.get(id)?.name).filter(Boolean).join(", ") || "Sin ganador"}
                       {" · "}{m.playerIds.length} jugadores
                     </small>
+                    </div>
                   </li>
                 ))}
               </ul>

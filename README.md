@@ -3,7 +3,7 @@
 Ranking de un torneo de juegos de mesa.
 
 - **`/`** — ranking con la foto de cada jugador, de más a menos puntos, y estadísticas (juego más jugado, quién jugó más, quién perdió más, últimas partidas…).
-- **`/configuracion`** — agregar jugadores (con foto) y juegos, registrar partidas (juego, quiénes jugaron, quiénes ganaron), editar o borrar partidas, y un listado ordenable por jugadas / puntos / perdidas.
+- **`/configuracion`** — agregar jugadores y juegos (ambos con foto), registrar partidas (juego, quiénes jugaron, quiénes ganaron), editar o borrar partidas, y un listado ordenable por jugadas / puntos / perdidas.
 
 Cada ganador de una partida suma **1 punto**.
 

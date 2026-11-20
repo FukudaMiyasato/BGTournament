@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { DB, Player } from "@/lib/types";
+import { DB, Game, Player } from "@/lib/types";
 
 export function useDB() {
   const [db, setDB] = useState<DB | null>(null);
@@ -31,5 +31,14 @@ export function Avatar({ player, size = 48 }: { player: Player; size?: number })
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img className="avatar" style={{ width: size, height: size }} src={src} alt={player.name} />
+  );
+}
+
+export function GameThumb({ game, size = 48 }: { game: Game; size?: number }) {
+  const style = { width: size, height: size, fontSize: size * 0.5 };
+  if (!game.photoV) return <span className="game-thumb" style={style} aria-hidden>🎲</span>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className="game-thumb" style={style} src={`/api/photo/${game.id}?v=${game.photoV}`} alt={game.name} />
   );
 }

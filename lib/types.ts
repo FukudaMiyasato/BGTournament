@@ -1,5 +1,5 @@
 export type Player = { id: string; name: string; photoV: number }; // photoV = 0 sin foto
-export type Game = { id: string; name: string };
+export type Game = { id: string; name: string; photoV?: number }; // sin photoV = sin foto
 export type Match = {
   id: string;
   gameId: string;

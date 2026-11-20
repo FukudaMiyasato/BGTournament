@@ -64,22 +64,38 @@ async function apply(db: DB, b: Body) {
       const name = clean(b.name);
       if (!name) throw new Fail("Escribe el nombre del juego");
       if (db.games.some((g) => same(g.name, name))) throw new Fail("Ese juego ya existe");
-      db.games.push({ id: newId(), name });
+      const id = newId();
+      let photoV = 0;
+      if (validPhoto(b.photo)) {
+        await savePhoto(id, b.photo);
+        photoV = 1;
+      }
+      db.games.push({ id, name, photoV });
       return;
     }
     case "updateGame": {
       const g = db.games.find((x) => x.id === b.id);
-      const name = clean(b.name);
       if (!g) throw new Fail("Juego no encontrado");
-      if (!name) throw new Fail("Escribe el nombre del juego");
-      if (db.games.some((x) => x.id !== g.id && same(x.name, name))) throw new Fail("Ese juego ya existe");
-      g.name = name;
+      if (b.name !== undefined) {
+        const name = clean(b.name);
+        if (!name) throw new Fail("Escribe el nombre del juego");
+        if (db.games.some((x) => x.id !== g.id && same(x.name, name))) throw new Fail("Ese juego ya existe");
+        g.name = name;
+      }
+      if (validPhoto(b.photo)) {
+        await savePhoto(g.id, b.photo);
+        g.photoV = Date.now();
+      } else if (b.removePhoto) {
+        await deletePhoto(g.id);
+        g.photoV = 0;
+      }
       return;
     }
     case "deleteGame": {
       if (db.matches.some((m) => m.gameId === b.id))
         throw new Fail("Este juego tiene partidas registradas. Bórralas o cámbialas de juego primero.");
       db.games = db.games.filter((g) => g.id !== b.id);
+      await deletePhoto(String(b.id)).catch(() => {});
       return;
     }
     case "saveMatch": {
@@ -164,6 +180,10 @@ async function importBackup(db: DB, data: Partial<Backup>) {
       db.games.push(g);
     }
     gameMap.set(inc.id, g.id);
+    if (validPhoto(photos[inc.id])) {
+      await savePhoto(g.id, photos[inc.id]);
+      g.photoV = Date.now();
+    }
   }
   for (const m of data.matches) {
     const gameId = gameMap.get(m?.gameId);
@@ -193,7 +213,7 @@ export async function GET() {
   if (!(await getMe()).isAdmin) return Response.json({ error: "No autorizado" }, { status: 401 });
   const db = await loadDB();
   const photos: Record<string, string> = {};
-  const ids = db.players.filter((p) => p.photoV).map((p) => p.id);
+  const ids = [...db.players, ...db.games].filter((x) => x.photoV).map((x) => x.id);
   if (db.defaultPhotoV) ids.push(DEFAULT_PHOTO_ID);
   for (const id of ids) {
     const photo = await loadPhoto(id);
