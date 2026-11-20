@@ -62,7 +62,6 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 
 /* Avatar */
 .avatar { border-radius: 50%; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); }
-.avatar-empty { color: #fff; font-weight: 700; }
 
 /* Podio */
 .podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 8px; margin-bottom: 20px; }
@@ -127,6 +126,7 @@ input.inline:hover, input.inline:focus { border-color: var(--border); background
 .chip.on { background: #2c3350; border-color: #6f7fd0; }
 .chip.on.win { background: #3d3214; border-color: var(--gold); }
 
+.default-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .list { padding: 4px 16px; }
 .list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; }
 .list li + li { border-top: 1px solid var(--border); }

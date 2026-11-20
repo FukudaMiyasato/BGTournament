@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
-import { Avatar, useDB } from "../ui";
+import { Avatar, DefaultPhoto, useDB } from "../ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
 import { DB, Match, Player } from "@/lib/types";
 import type { Me } from "@/lib/auth";
@@ -26,7 +26,7 @@ async function fileToPhoto(file: File): Promise<string> {
 export default function Config() {
   const { db, setDB, error: loadError } = useDB();
   const [auth, setAuth] = useState<Me | null>(null);
-  const [tab, setTab] = useState<"partidas" | "jugadores" | "juegos" | "listado">("partidas");
+  const [tab, setTab] = useState<"partidas" | "jugadores" | "juegos" | "listado" | "datos">("partidas");
   const [error, setError] = useState("");
 
   const checkAuth = () =>
@@ -96,6 +96,7 @@ export default function Config() {
               ["jugadores", "Jugadores"],
               ["juegos", "Juegos"],
               ["listado", "Listado"],
+              ["datos", "Datos"],
             ] as const
           ).map(([k, label]) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setError(""); }}>
@@ -108,10 +109,12 @@ export default function Config() {
         {tab === "jugadores" && <Players db={db} act={act} />}
         {tab === "juegos" && <Games db={db} act={act} />}
         {tab === "listado" && <Listing db={db} />}
+        {tab === "datos" && <Data act={act} />}
       </>
     );
 
   return (
+    <DefaultPhoto value={db?.defaultPhotoV ?? 0}>
     <main className="page">
       <header className="top">
         <h1>⚙️ Configuración</h1>
@@ -126,6 +129,7 @@ export default function Config() {
       </header>
       {content}
     </main>
+    </DefaultPhoto>
   );
 }
 
@@ -337,6 +341,8 @@ function Players({ db, act }: { db: DB; act: Act }) {
         <div className="row"><button className="btn">Agregar jugador</button></div>
       </form>
 
+      <DefaultPhotoCard db={db} act={act} />
+
       <h2>Jugadores ({db.players.length})</h2>
       <ul className="card list">
         {[...db.players].sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
@@ -391,6 +397,86 @@ function PlayerRow({ player, act }: { player: Player; act: Act }) {
         Borrar
       </button>
     </li>
+  );
+}
+
+function DefaultPhotoCard({ db, act }: { db: DB; act: Act }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="card default-photo">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        className="avatar"
+        style={{ width: 52, height: 52 }}
+        src={db.defaultPhotoV ? `/api/photo/default?v=${db.defaultPhotoV}` : "/default-avatar.svg"}
+        alt="Foto por defecto"
+      />
+      <div className="grow">
+        <strong>Foto por defecto</strong>
+        <div className="muted">Se muestra en los jugadores que no tienen foto.</div>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (f) await act({ action: "setDefaultPhoto", photo: await fileToPhoto(f) });
+          e.target.value = "";
+        }}
+      />
+      <button className="btn ghost small" onClick={() => fileRef.current?.click()}>Cambiar</button>
+      {db.defaultPhotoV > 0 && (
+        <button className="btn ghost small" onClick={() => act({ action: "resetDefaultPhoto" })}>
+          Restaurar original
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Datos ---------- */
+
+function Data({ act }: { act: Act }) {
+  const [msg, setMsg] = useState("");
+  return (
+    <>
+      <div className="card form">
+        <h2>Exportar</h2>
+        <p className="muted">Descarga una copia con jugadores, fotos, juegos y partidas.</p>
+        <div className="row">
+          <a className="btn" href="/api/admin" download>Descargar copia</a>
+        </div>
+      </div>
+      <div className="card form" style={{ marginTop: 16 }}>
+        <h2>Importar</h2>
+        <p className="muted">
+          Agrega lo que haya en una copia sin borrar nada: los jugadores y juegos con el mismo
+          nombre se combinan y las partidas que ya existen no se duplican.
+        </p>
+        <div className="row">
+          <input
+            type="file"
+            accept="application/json,.json"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (!f) return;
+              setMsg("");
+              let data;
+              try {
+                data = JSON.parse(await f.text());
+              } catch {
+                data = null;
+              }
+              if (await act({ action: "import", data })) setMsg("Datos importados.");
+            }}
+          />
+        </div>
+        {msg && <p className="notice">{msg}</p>}
+      </div>
+    </>
   );
 }
 

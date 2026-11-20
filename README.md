@@ -7,6 +7,8 @@ Ranking de un torneo de juegos de mesa.
 
 Cada ganador de una partida suma **1 punto**.
 
+Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Datos** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
+
 ## Desplegar en Vercel
 
 1. Importa este repositorio en Vercel.

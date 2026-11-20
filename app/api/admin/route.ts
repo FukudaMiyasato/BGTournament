@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getMe } from "@/lib/auth";
-import { deletePhoto, loadDB, saveDB, savePhoto } from "@/lib/store";
-import { DB } from "@/lib/types";
+import { deletePhoto, loadDB, loadPhoto, saveDB, savePhoto } from "@/lib/store";
+import { Backup, DB, DEFAULT_PHOTO_ID } from "@/lib/types";
 
 const newId = () => crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 const clean = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 60) : "");
@@ -114,9 +114,99 @@ async function apply(db: DB, b: Body) {
       db.matches = db.matches.filter((m) => m.id !== b.id);
       return;
     }
+    case "setDefaultPhoto": {
+      if (!validPhoto(b.photo)) throw new Fail("Imagen inválida");
+      await savePhoto(DEFAULT_PHOTO_ID, b.photo);
+      db.defaultPhotoV = Date.now();
+      return;
+    }
+    case "resetDefaultPhoto": {
+      await deletePhoto(DEFAULT_PHOTO_ID);
+      db.defaultPhotoV = 0;
+      return;
+    }
+    case "import": {
+      await importBackup(db, b.data as Partial<Backup>);
+      return;
+    }
     default:
       throw new Fail("Acción desconocida");
   }
+}
+
+// Fusiona una copia de seguridad: no borra nada; jugadores y juegos se emparejan por nombre.
+async function importBackup(db: DB, data: Partial<Backup>) {
+  if (!data || !Array.isArray(data.players) || !Array.isArray(data.games) || !Array.isArray(data.matches))
+    throw new Fail("El archivo no es una copia válida de BG Tournament");
+  const photos = data.photos ?? {};
+  const playerMap = new Map<string, string>();
+  for (const inc of data.players) {
+    const name = clean(inc?.name);
+    if (!name) continue;
+    let p = db.players.find((x) => same(x.name, name));
+    if (!p) {
+      p = { id: newId(), name, photoV: 0 };
+      db.players.push(p);
+    }
+    playerMap.set(inc.id, p.id);
+    if (validPhoto(photos[inc.id])) {
+      await savePhoto(p.id, photos[inc.id]);
+      p.photoV = Date.now();
+    }
+  }
+  const gameMap = new Map<string, string>();
+  for (const inc of data.games) {
+    const name = clean(inc?.name);
+    if (!name) continue;
+    let g = db.games.find((x) => same(x.name, name));
+    if (!g) {
+      g = { id: newId(), name };
+      db.games.push(g);
+    }
+    gameMap.set(inc.id, g.id);
+  }
+  for (const m of data.matches) {
+    const gameId = gameMap.get(m?.gameId);
+    if (!gameId || db.matches.some((x) => x.id === m.id)) continue;
+    if (typeof m.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.date)) continue;
+    const ids = (list: unknown) =>
+      (Array.isArray(list) ? list : []).map((x) => playerMap.get(x)).filter((x): x is string => !!x);
+    const playerIds = ids(m.playerIds);
+    if (!playerIds.length) continue;
+    db.matches.push({
+      id: typeof m.id === "string" && /^[a-z0-9]{6,20}$/.test(m.id) ? m.id : newId(),
+      gameId,
+      date: m.date,
+      playerIds,
+      winnerIds: ids(m.winnerIds).filter((x) => playerIds.includes(x)),
+      createdAt: Number(m.createdAt) || Date.now(),
+    });
+  }
+  if (validPhoto(photos[DEFAULT_PHOTO_ID])) {
+    await savePhoto(DEFAULT_PHOTO_ID, photos[DEFAULT_PHOTO_ID]);
+    db.defaultPhotoV = Date.now();
+  }
+}
+
+// Exporta todo (datos + fotos) como archivo JSON
+export async function GET() {
+  if (!(await getMe()).isAdmin) return Response.json({ error: "No autorizado" }, { status: 401 });
+  const db = await loadDB();
+  const photos: Record<string, string> = {};
+  const ids = db.players.filter((p) => p.photoV).map((p) => p.id);
+  if (db.defaultPhotoV) ids.push(DEFAULT_PHOTO_ID);
+  for (const id of ids) {
+    const photo = await loadPhoto(id);
+    if (photo) photos[id] = photo;
+  }
+  const backup: Backup = { ...db, photos };
+  return new Response(JSON.stringify(backup), {
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Disposition": `attachment; filename="bgtournament-datos.json"`,
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {

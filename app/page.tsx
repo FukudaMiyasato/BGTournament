@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Avatar, useDB } from "./ui";
+import { Avatar, DefaultPhoto, useDB } from "./ui";
 import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
 
 const pts = (n: number) => `${n} ${n === 1 ? "punto" : "puntos"}`;
@@ -29,6 +29,7 @@ export default function Home() {
   const maxGame = games[0]?.played ?? 1;
 
   return (
+    <DefaultPhoto value={db.defaultPhotoV}>
     <main className="page">
       <header className="top">
         <h1>🎲 BG Tournament</h1>
@@ -153,5 +154,6 @@ export default function Home() {
         </>
       )}
     </main>
+    </DefaultPhoto>
   );
 }
