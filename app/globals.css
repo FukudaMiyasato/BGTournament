@@ -25,7 +25,7 @@ body {
   line-height: 1.4;
 }
 a { color: inherit; text-decoration: none; }
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 ul, ol { list-style: none; }
 small { font-size: 0.8rem; }
 code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
@@ -126,7 +126,7 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
 label, .field { display: grid; gap: 6px; font-size: 0.9rem; color: var(--muted); }
 .field em { font-style: normal; opacity: 0.8; }
-input:not([type="file"]) { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text); width: 100%; min-width: 0; }
+input:not([type="file"]), select { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--text); width: 100%; min-width: 0; }
 input[type="file"] { max-width: 230px; font-size: 0.85rem; }
 input.inline { background: transparent; border-color: transparent; font-weight: 600; padding: 8px; }
 input.inline:hover, input.inline:focus { border-color: var(--border); background: var(--bg); }
@@ -138,6 +138,7 @@ input.inline:hover, input.inline:focus { border-color: var(--border); background
 .chip.on { background: #2c3350; border-color: #6f7fd0; }
 .chip.on.win { background: #3d3214; border-color: var(--gold); }
 
+.season-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; border-color: #6b5420; }
 .default-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
 .list { padding: 4px 16px; }
 .list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0; }

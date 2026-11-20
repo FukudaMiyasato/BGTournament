@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getMe } from "@/lib/auth";
 import { deletePhoto, loadDB, loadPhoto, saveDB, savePhoto } from "@/lib/store";
-import { Backup, DB, DEFAULT_PHOTO_ID } from "@/lib/types";
+import { Backup, DB, DEFAULT_PHOTO_ID, normalize } from "@/lib/types";
 
 const newId = () => crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 const clean = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 60) : "");
@@ -101,8 +101,9 @@ async function apply(db: DB, b: Body) {
     case "saveMatch": {
       const gameName = clean(b.gameName);
       if (!gameName) throw new Fail("Escribe el nombre del juego");
-      const date = typeof b.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : "";
-      if (!date) throw new Fail("Fecha inválida");
+      // Por defecto, la temporada que se está preparando
+      const season = b.season === undefined ? db.publishedSeason + 1 : Number(b.season);
+      if (!Number.isInteger(season) || season < 1 || season > 999) throw new Fail("Temporada inválida");
       const known = new Set(db.players.map((p) => p.id));
       const playerIds = [...new Set(Array.isArray(b.playerIds) ? b.playerIds : [])].filter(
         (x): x is string => typeof x === "string" && known.has(x)
@@ -120,14 +121,26 @@ async function apply(db: DB, b: Body) {
       if (b.id) {
         const m = db.matches.find((x) => x.id === b.id);
         if (!m) throw new Fail("Partida no encontrada");
-        Object.assign(m, { gameId: game.id, date, playerIds, winnerIds });
+        Object.assign(m, { gameId: game.id, season, playerIds, winnerIds });
       } else {
-        db.matches.push({ id: newId(), gameId: game.id, date, playerIds, winnerIds, createdAt: Date.now() });
+        db.matches.push({ id: newId(), gameId: game.id, season, playerIds, winnerIds, createdAt: Date.now() });
       }
       return;
     }
     case "deleteMatch": {
       db.matches = db.matches.filter((m) => m.id !== b.id);
+      return;
+    }
+    case "publishSeason": {
+      const next = db.publishedSeason + 1;
+      if (!db.matches.some((m) => m.season === next))
+        throw new Fail(`La temporada ${next} aún no tiene partidas`);
+      db.publishedSeason = next;
+      return;
+    }
+    case "unpublishSeason": {
+      if (db.publishedSeason < 1) throw new Fail("No hay temporadas subidas");
+      db.publishedSeason--;
       return;
     }
     case "setDefaultPhoto": {
@@ -151,10 +164,11 @@ async function apply(db: DB, b: Body) {
 }
 
 // Fusiona una copia de seguridad: no borra nada; jugadores y juegos se emparejan por nombre.
-async function importBackup(db: DB, data: Partial<Backup>) {
-  if (!data || !Array.isArray(data.players) || !Array.isArray(data.games) || !Array.isArray(data.matches))
+async function importBackup(db: DB, raw: Partial<Backup>) {
+  if (!raw || !Array.isArray(raw.players) || !Array.isArray(raw.games) || !Array.isArray(raw.matches))
     throw new Fail("El archivo no es una copia válida de BG Tournament");
-  const photos = data.photos ?? {};
+  const photos = raw.photos ?? {};
+  const data = normalize(raw); // convierte copias antiguas (con fechas) a temporadas
   const playerMap = new Map<string, string>();
   for (const inc of data.players) {
     const name = clean(inc?.name);
@@ -188,7 +202,7 @@ async function importBackup(db: DB, data: Partial<Backup>) {
   for (const m of data.matches) {
     const gameId = gameMap.get(m?.gameId);
     if (!gameId || db.matches.some((x) => x.id === m.id)) continue;
-    if (typeof m.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(m.date)) continue;
+    if (!Number.isInteger(m.season) || m.season < 1) continue;
     const ids = (list: unknown) =>
       (Array.isArray(list) ? list : []).map((x) => playerMap.get(x)).filter((x): x is string => !!x);
     const playerIds = ids(m.playerIds);
@@ -196,12 +210,13 @@ async function importBackup(db: DB, data: Partial<Backup>) {
     db.matches.push({
       id: typeof m.id === "string" && /^[a-z0-9]{6,20}$/.test(m.id) ? m.id : newId(),
       gameId,
-      date: m.date,
+      season: m.season,
       playerIds,
       winnerIds: ids(m.winnerIds).filter((x) => playerIds.includes(x)),
       createdAt: Number(m.createdAt) || Date.now(),
     });
   }
+  db.publishedSeason = Math.max(db.publishedSeason, Number(data.publishedSeason) || 0);
   if (validPhoto(photos[DEFAULT_PHOTO_ID])) {
     await savePhoto(DEFAULT_PHOTO_ID, photos[DEFAULT_PHOTO_ID]);
     db.defaultPhotoV = Date.now();

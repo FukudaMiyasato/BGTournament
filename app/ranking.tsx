@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { Avatar } from "./ui";
-import { PlayerStat, formatDate, previousRanking, ranking } from "@/lib/stats";
+import { PlayerStat, previousRanking, ranking } from "@/lib/stats";
 import { DB } from "@/lib/types";
 
 const pts = (n: number) => `${n} ${n === 1 ? "punto" : "puntos"}`;
@@ -23,7 +23,8 @@ export function Ranking({ db }: { db: DB }) {
   const before = useRef<Map<string, DOMRect> | null>(null);
 
   const now = ranking(db);
-  const { lastDay, prev } = previousRanking(db);
+  const prev = previousRanking(db);
+  const season = db.publishedSeason;
   const prevById = new Map(prev.map((s) => [s.player.id, s]));
   const rows = view === "now" ? now : prev;
   const showChange = view === "now" && prev.length > 0;
@@ -75,7 +76,7 @@ export function Ranking({ db }: { db: DB }) {
   if (now.length === 0)
     return (
       <div className="card center empty">
-        <p>Aún no hay partidas registradas. El ranking aparecerá con la primera.</p>
+        <p>Aún no hay temporadas subidas. El ranking aparecerá con la primera.</p>
       </div>
     );
 
@@ -87,15 +88,15 @@ export function Ranking({ db }: { db: DB }) {
       <div className="rank-bar">
         <span className="muted">
           {view === "prev"
-            ? "Ranking anterior…"
-            : showChange && lastDay
-              ? `Cambios tras las partidas del ${formatDate(lastDay)}`
-              : ""}
+            ? season > 1 ? `Así quedó la temporada ${season - 1}…` : "Antes de la temporada 1…"
+            : showChange
+              ? `Temporada ${season} · cambios respecto a la temporada ${season - 1}`
+              : `Temporada ${season}`}
         </span>
         <button className="btn small" onClick={animate} disabled={busy}>▶ Animar</button>
       </div>
 
-      {rows.length === 0 && <p className="card center muted empty">Sin ranking anterior</p>}
+      {rows.length === 0 && <p className="card center muted empty">Todavía sin ranking</p>}
 
       {podium.length > 0 && (
         <section className="podium">

@@ -3,9 +3,15 @@
 Ranking de un torneo de juegos de mesa.
 
 - **`/`** — ranking con la foto de cada jugador, de más a menos puntos, y estadísticas (juego más jugado, quién jugó más, quién perdió más, últimas partidas…).
-- **`/configuracion`** — agregar jugadores y juegos (ambos con foto), registrar partidas (juego, quiénes jugaron, quiénes ganaron), editar o borrar partidas, y un listado ordenable por jugadas / puntos / perdidas.
+- **`/configuracion`** — agregar jugadores y juegos (ambos con foto), registrar partidas por temporada (juego, quiénes jugaron, quiénes ganaron), editar o borrar partidas, y un listado ordenable por jugadas / puntos / perdidas.
 
-Cada ganador de una partida suma **1 punto**. En el ranking solo aparecen quienes jugaron al menos una partida. El botón **Animar** muestra el ranking anterior (sin las partidas del último día jugado) y desliza a cada jugador hasta su puesto actual; no se guarda nada aparte: se calcula con las fechas de las partidas.
+Cada ganador de una partida suma **1 punto**. En el ranking solo aparecen quienes jugaron al menos una partida.
+
+### Temporadas
+
+Las partidas se agrupan en **temporadas** consecutivas (1, 2, 3…). En **Configuración → Partidas** cargas las partidas de la temporada en preparación; no cuentan en el ranking público hasta que pulsas **Subir temporada**. Al subirla, sus puntos se suman al ranking.
+
+El botón **Animar** del home muestra cómo quedó la temporada anterior y desliza a cada jugador hasta su puesto actual. No se guarda nada aparte: se calcula con la temporada de cada partida.
 
 Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Datos** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 

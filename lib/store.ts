@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { Redis } from "@upstash/redis";
-import { DB, emptyDB } from "./types";
+import { DB, normalize } from "./types";
 
 // Producción: Upstash Redis (integración de Vercel). Local: archivos en .data/
 const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
@@ -40,7 +40,7 @@ export async function loadDB(): Promise<DB> {
     const raw = await readFile("db.json");
     db = raw ? JSON.parse(raw) : null;
   }
-  return { ...emptyDB(), ...(db ?? {}) };
+  return normalize(db);
 }
 
 export async function saveDB(db: DB) {

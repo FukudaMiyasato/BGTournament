@@ -3,18 +3,19 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { DB, Game, Player } from "@/lib/types";
 
-export function useDB() {
+// all = incluir la temporada en preparación (solo administradores)
+export function useDB(all = false) {
   const [db, setDB] = useState<DB | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    fetch("/api/data", { cache: "no-store" })
+    fetch(all ? "/api/data?all" : "/api/data", { cache: "no-store" })
       .then(async (r) => {
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || "Error al cargar");
         setDB(j);
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [all]);
   return { db, setDB, error };
 }
 

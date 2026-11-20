@@ -45,12 +45,10 @@ export function ranking(db: DB, matches: Match[] = db.matches): PlayerStat[] {
   return list;
 }
 
-// Ranking anterior: el mismo cálculo sin las partidas del último día jugado.
-// No se guarda nada: sale de las fechas de las partidas, así que se corrige solo si editas una.
-export function previousRanking(db: DB): { lastDay: string | null; prev: PlayerStat[] } {
-  const lastDay = db.matches.reduce<string | null>((d, m) => (!d || m.date > d ? m.date : d), null);
-  if (!lastDay) return { lastDay, prev: [] };
-  return { lastDay, prev: ranking(db, db.matches.filter((m) => m.date < lastDay)) };
+// Ranking anterior: el mismo cálculo sin la última temporada subida.
+// No se guarda nada aparte: sale de la temporada de cada partida.
+export function previousRanking(db: DB): PlayerStat[] {
+  return ranking(db, db.matches.filter((m) => m.season < db.publishedSeason));
 }
 
 export function gameStats(db: DB): GameStat[] {
@@ -73,15 +71,6 @@ export function gameStats(db: DB): GameStat[] {
 
 export function sortedMatches(db: DB): Match[] {
   return [...db.matches].sort(
-    (a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt
+    (a, b) => b.season - a.season || b.createdAt - a.createdAt
   );
-}
-
-export function formatDate(d: string) {
-  const [y, m, day] = d.split("-").map(Number);
-  return new Date(y, m - 1, day).toLocaleDateString("es", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }

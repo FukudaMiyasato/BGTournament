@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "./ui";
-import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
+import { gameStats, playerStats, sortedMatches } from "@/lib/stats";
 import { Ranking } from "./ranking";
 
 export default function Home() {
@@ -111,7 +111,7 @@ export default function Home() {
                     <div className="grow">
                     <div className="bar-head">
                       <span>{gameById.get(m.gameId)?.name ?? "—"}</span>
-                      <span className="muted">{formatDate(m.date)}</span>
+                      <span className="muted">Temporada {m.season}</span>
                     </div>
                     <small className="muted">
                       🏆 {m.winnerIds.map((id) => playerById.get(id)?.name).filter(Boolean).join(", ") || "Sin ganador"}

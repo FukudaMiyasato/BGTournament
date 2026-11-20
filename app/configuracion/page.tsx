@@ -4,12 +4,11 @@ import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "../ui";
-import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
+import { gameStats, playerStats, sortedMatches } from "@/lib/stats";
 import { DB, Game, Match, Player } from "@/lib/types";
 import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
-const today = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD local
 
 // Recorta al centro y reduce a 400x400 para que la foto pese poco
 async function fileToPhoto(file: File): Promise<string> {
@@ -24,7 +23,7 @@ async function fileToPhoto(file: File): Promise<string> {
 }
 
 export default function Config() {
-  const { db, setDB, error: loadError } = useDB();
+  const { db, setDB, error: loadError } = useDB(true);
   const [auth, setAuth] = useState<Me | null>(null);
   const [tab, setTab] = useState<"partidas" | "jugadores" | "juegos" | "listado" | "datos">("partidas");
   const [error, setError] = useState("");
@@ -163,7 +162,9 @@ function Chips({
 function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => void }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [gameName, setGameName] = useState("");
-  const [date, setDate] = useState(today());
+  const draft = db.publishedSeason + 1; // temporada en preparación
+  const maxSeason = Math.max(draft, ...db.matches.map((m) => m.season));
+  const [season, setSeason] = useState<number | null>(null); // null = la que se está preparando
   const [playerIds, setPlayerIds] = useState<string[]>([]);
   const [winnerIds, setWinnerIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -176,14 +177,14 @@ function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => vo
   const reset = () => {
     setEditing(null);
     setGameName("");
-    setDate(today());
+    setSeason(null);
     setPlayerIds([]);
     setWinnerIds([]);
   };
   const edit = (m: Match) => {
     setEditing(m.id);
     setGameName(gameById.get(m.gameId)?.name ?? "");
-    setDate(m.date);
+    setSeason(m.season);
     setPlayerIds(m.playerIds);
     setWinnerIds(m.winnerIds);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -200,13 +201,48 @@ function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => vo
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const ok = await act({ action: "saveMatch", id: editing, gameName, date, playerIds, winnerIds });
+    const ok = await act({ action: "saveMatch", id: editing, gameName, season: season ?? draft, playerIds, winnerIds });
     setBusy(false);
     if (ok) reset();
   };
 
+  const seasons = [...new Set(db.matches.map((m) => m.season))].sort((a, b) => b - a);
+  const draftCount = db.matches.filter((m) => m.season === draft).length;
+
   return (
     <>
+      <div className="card season-card">
+        <div className="grow">
+          <strong>Temporada {draft} · en preparación</strong>
+          <div className="muted">
+            {draftCount} {draftCount === 1 ? "partida cargada" : "partidas cargadas"}. No cuenta en el
+            ranking público hasta que la subas.
+            {db.publishedSeason > 0 && ` Última subida: temporada ${db.publishedSeason}.`}
+          </div>
+        </div>
+        {db.publishedSeason > 0 && (
+          <button
+            className="btn ghost small"
+            onClick={() =>
+              confirm(`¿Deshacer la subida de la temporada ${db.publishedSeason}? Dejará de contar en el ranking público.`) &&
+              act({ action: "unpublishSeason" })
+            }
+          >
+            Deshacer subida {db.publishedSeason}
+          </button>
+        )}
+        <button
+          className="btn"
+          disabled={draftCount === 0}
+          onClick={() =>
+            confirm(`¿Subir la temporada ${draft}? Sus puntos se sumarán al ranking público.`) &&
+            act({ action: "publishSeason" })
+          }
+        >
+          Subir temporada {draft}
+        </button>
+      </div>
+
       <form className="card form" onSubmit={submit} ref={formRef}>
         <h2>{editing ? "Editar partida" : "Nueva partida"}</h2>
         {players.length === 0 ? (
@@ -231,8 +267,14 @@ function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => vo
                 </datalist>
               </label>
               <label>
-                Fecha
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+                Temporada
+                <select value={season ?? draft} onChange={(e) => setSeason(Number(e.target.value))}>
+                  {Array.from({ length: maxSeason }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n}{n === draft ? " (en preparación)" : n < draft ? " (subida)" : ""}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <div className="field">
@@ -260,40 +302,42 @@ function Matches({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => vo
         )}
       </form>
 
-      <h2>Partidas jugadas ({db.matches.length})</h2>
-      {db.matches.length === 0 ? (
-        <p className="muted">Aún no hay partidas registradas.</p>
-      ) : (
-        <ul className="card list">
-          {sortedMatches(db).map((m) => (
-            <li key={m.id} className={editing === m.id ? "editing" : ""}>
-              <div className="grow">
-                <strong>{gameById.get(m.gameId)?.name ?? "—"}</strong>{" "}
-                <span className="muted">· {formatDate(m.date)}</span>
-                <div className="mini-players">
-                  {m.playerIds.map((id) => {
-                    const p = playerById.get(id);
-                    if (!p) return null;
-                    const won = m.winnerIds.includes(id);
-                    return (
-                      <span key={id} className={won ? "won" : ""}>
-                        {won && "🏆 "}{p.name}
-                      </span>
-                    );
-                  })}
+      {db.matches.length === 0 && <p className="muted" style={{ marginTop: 24 }}>Aún no hay partidas registradas.</p>}
+      {seasons.map((n) => (
+        <section key={n}>
+          <h2>
+            Temporada {n} · {n <= db.publishedSeason ? "subida" : n === draft ? "en preparación" : "sin subir"}
+          </h2>
+          <ul className="card list">
+            {sortedMatches(db).filter((m) => m.season === n).map((m) => (
+              <li key={m.id} className={editing === m.id ? "editing" : ""}>
+                <div className="grow">
+                  <strong>{gameById.get(m.gameId)?.name ?? "—"}</strong>
+                  <div className="mini-players">
+                    {m.playerIds.map((id) => {
+                      const p = playerById.get(id);
+                      if (!p) return null;
+                      const won = m.winnerIds.includes(id);
+                      return (
+                        <span key={id} className={won ? "won" : ""}>
+                          {won && "🏆 "}{p.name}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-              <button className="btn ghost small" onClick={() => edit(m)}>Editar</button>
-              <button
-                className="btn danger small"
-                onClick={() => confirm("¿Borrar esta partida?") && act({ action: "deleteMatch", id: m.id })}
-              >
-                Borrar
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <button className="btn ghost small" onClick={() => edit(m)}>Editar</button>
+                <button
+                  className="btn danger small"
+                  onClick={() => confirm("¿Borrar esta partida?") && act({ action: "deleteMatch", id: m.id })}
+                >
+                  Borrar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </>
   );
 }
