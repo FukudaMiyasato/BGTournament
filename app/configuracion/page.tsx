@@ -104,7 +104,7 @@ export default function Config() {
               ["jugadores", "Jugadores"],
               ["juegos", "Juegos"],
               ["listado", "Listado"],
-              ["datos", "Datos"],
+              ["datos", "Ajustes"],
             ] as const
           ).map(([k, label]) => (
             <button key={k} className={tab === k ? "on" : ""} onClick={() => { setTab(k); setError(""); }}>
@@ -117,7 +117,7 @@ export default function Config() {
         {tab === "jugadores" && <Players db={db} act={act} />}
         {tab === "juegos" && <Games db={db} act={act} />}
         {tab === "listado" && <Listing db={db} />}
-        {tab === "datos" && <Data act={act} />}
+        {tab === "datos" && <Data db={db} act={act} />}
       </>
     );
 
@@ -311,7 +311,7 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
         <button className="btn ghost small" onClick={addRow}>＋ Agregar partida</button>
         {rows.length > 0 && (
           <span className="muted">
-            Toca las caritas en orden: la primera es el 1.º (gana el punto), la siguiente el 2.º, y así. Toca
+            Toca las caritas en orden: la primera es el 1.º, la siguiente el 2.º, y así. Toca
             de nuevo para quitar un puesto.
           </span>
         )}
@@ -548,10 +548,56 @@ function DefaultPhotoCard({ db, act }: { db: DB; act: Act }) {
 
 /* ---------- Datos ---------- */
 
-function Data({ act }: { act: Act }) {
+function PointsCard({ db, act }: { db: DB; act: Act }) {
+  const [points, setPoints] = useState<string[]>(db.points.map(String));
+  const [saved, setSaved] = useState(false);
+  const set = (i: number, v: string) => {
+    setPoints(points.map((p, j) => (j === i ? v : p)));
+    setSaved(false);
+  };
+  return (
+    <form
+      className="card form"
+      style={{ marginBottom: 16 }}
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setSaved(await act({ action: "setPoints", points: points.map((p) => Number(p || 0)) }));
+      }}
+    >
+      <h2>Puntos por puesto</h2>
+      <p className="muted">
+        Puntos que suma cada puesto en una partida. Los puestos que no estén aquí suman 0. Al cambiarlos
+        se recalcula todo el ranking.
+      </p>
+      <div className="row">
+        {points.map((p, i) => (
+          <label key={i} className="points-input">
+            {i + 1}.º
+            <input type="number" min={0} max={999} step={1} value={p} onChange={(e) => set(i, e.target.value)} required />
+          </label>
+        ))}
+        <button type="button" className="btn ghost small" onClick={() => { setPoints([...points, "0"]); setSaved(false); }}>
+          ＋ Puesto
+        </button>
+        {points.length > 1 && (
+          <button type="button" className="btn ghost small" onClick={() => { setPoints(points.slice(0, -1)); setSaved(false); }}>
+            − Quitar último
+          </button>
+        )}
+      </div>
+      <div className="row">
+        <button className="btn">Guardar puntos</button>
+        {saved && <span className="muted">Guardado.</span>}
+      </div>
+    </form>
+  );
+}
+
+function Data({ db, act }: { db: DB; act: Act }) {
   const [msg, setMsg] = useState("");
   return (
     <>
+      <PointsCard db={db} act={act} />
       <div className="card form">
         <h2>Exportar</h2>
         <p className="muted">Descarga una copia con jugadores, fotos, juegos y partidas.</p>
@@ -727,6 +773,7 @@ function Listing({ db }: { db: DB }) {
               <th>Jugador</th>
               {th("played", "Jugadas")}
               {th("points", "Puntos")}
+              <th className="num">1.º</th>
               <th className="num">2.º</th>
               <th className="num">3.º</th>
               {th("losses", "Perdidas")}
@@ -740,6 +787,7 @@ function Listing({ db }: { db: DB }) {
                 <td><span className="who"><Avatar player={s.player} size={32} />{s.player.name}</span></td>
                 <td className="num">{s.played}</td>
                 <td className="num">{s.points}</td>
+                <td className="num">{s.wins}</td>
                 <td className="num">{s.seconds}</td>
                 <td className="num">{s.thirds}</td>
                 <td className="num">{s.losses}</td>

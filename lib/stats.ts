@@ -3,7 +3,8 @@ import { DB, Game, Match, Player, Session } from "./types";
 export type PlayerStat = {
   player: Player;
   played: number;
-  points: number; // 1 punto por cada primer puesto
+  points: number; // según db.points y el puesto en cada partida
+  wins: number; // primeros puestos
   seconds: number;
   thirds: number;
   losses: number; // jugó y no quedó primero
@@ -16,7 +17,7 @@ export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[]
   const map = new Map(
     db.players.map((p) => [
       p.id,
-      { player: p, played: 0, points: 0, seconds: 0, thirds: 0, losses: 0, winRate: 0, rank: 0 },
+      { player: p, played: 0, points: 0, wins: 0, seconds: 0, thirds: 0, losses: 0, winRate: 0, rank: 0 },
     ])
   );
   for (const m of matches) {
@@ -25,18 +26,20 @@ export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[]
       if (!s) continue;
       s.played++;
       const place = m.places.indexOf(id);
-      if (place === 0) s.points++;
+      if (place >= 0) s.points += db.points[place] ?? 0;
+      if (place === 0) s.wins++;
       else s.losses++;
       if (place === 1) s.seconds++;
       if (place === 2) s.thirds++;
     }
   }
   const list = [...map.values()];
-  for (const s of list) s.winRate = s.played ? s.points / s.played : 0;
-  // Desempate de orden: más segundos puestos, más terceros, mejor % y nombre
+  for (const s of list) s.winRate = s.played ? s.wins / s.played : 0;
+  // Desempate de orden: más primeros puestos, más segundos, más terceros, mejor % y nombre
   list.sort(
     (a, b) =>
       b.points - a.points ||
+      b.wins - a.wins ||
       b.seconds - a.seconds ||
       b.thirds - a.thirds ||
       b.winRate - a.winRate ||

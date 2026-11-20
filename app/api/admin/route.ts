@@ -154,6 +154,14 @@ async function apply(db: DB, b: Body) {
       db.matches = db.matches.filter((m) => m.id !== b.id);
       return;
     }
+    case "setPoints": {
+      const list = Array.isArray(b.points) ? b.points.map(Number) : [];
+      if (!list.length || list.length > 20 || list.some((n) => !Number.isInteger(n) || n < 0 || n > 999))
+        throw new Fail("Puntos inválidos: usa números enteros entre 0 y 999");
+      while (list.length > 1 && list.at(-1) === 0) list.pop(); // sin ceros sobrantes al final
+      db.points = list;
+      return;
+    }
     case "setDefaultPhoto": {
       if (!validPhoto(b.photo)) throw new Fail("Imagen inválida");
       await savePhoto(DEFAULT_PHOTO_ID, b.photo);

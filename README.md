@@ -5,7 +5,7 @@ Ranking de un torneo de juegos de mesa.
 - **`/`** — ranking con la foto de cada jugador, de más a menos puntos, y estadísticas (juego más jugado, quién jugó más, quién perdió más, últimas partidas…).
 - **`/configuracion`** — agregar jugadores y juegos (ambos con foto), registrar sesiones con sus partidas (juego, integrantes y puestos), editarlas o borrarlas, y un listado ordenable por jugadas / puntos / perdidas.
 
-El primer puesto de cada partida suma **1 punto**. En el ranking solo aparecen quienes jugaron al menos una partida.
+Cada partida reparte puntos según el puesto: por defecto **3** al 1.º, **2** al 2.º y **1** al 3.º. Se cambia en **Configuración → Ajustes**. En el ranking solo aparecen quienes jugaron al menos una partida.
 
 ### Sesiones
 
@@ -18,7 +18,7 @@ Las partidas se agrupan en **sesiones** (una jornada de juego con su fecha). En 
 
 El botón **Animar** del home muestra cómo estaba el ranking antes de la última sesión subida y desliza a cada jugador hasta su puesto actual. No se guarda nada aparte: se calcula con las partidas de cada sesión.
 
-Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Datos** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
+Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Ajustes** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 
 ## Desplegar en Vercel
 

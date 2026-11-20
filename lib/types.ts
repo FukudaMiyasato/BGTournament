@@ -8,7 +8,7 @@ export type Match = {
   sessionId: string;
   gameId: string;
   playerIds: string[];
-  places: string[]; // jugadores en orden de puesto: [1.º, 2.º, 3.º, …]; el 1.º gana 1 punto
+  places: string[]; // jugadores en orden de puesto: [1.º, 2.º, 3.º, …]
   createdAt: number;
 };
 export type DB = {
@@ -17,8 +17,9 @@ export type DB = {
   sessions: Session[];
   matches: Match[];
   defaultPhotoV: number; // 0 = imagen por defecto original
+  points: number[]; // puntos por puesto: [1.º, 2.º, 3.º, …]; los puestos siguientes dan 0
 };
-export const emptyDB = (): DB => ({ players: [], games: [], sessions: [], matches: [], defaultPhotoV: 0 });
+export const emptyDB = (): DB => ({ players: [], games: [], sessions: [], matches: [], defaultPhotoV: 0, points: [3, 2, 1] });
 // Copia de seguridad: la base más las fotos (data URLs) por id; "default" = foto por defecto
 export type Backup = DB & { photos: Record<string, string> };
 export const DEFAULT_PHOTO_ID = "default";
