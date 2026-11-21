@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "../ui";
 import { formatDate, gameStats, playerStats, sortedSessions } from "@/lib/stats";
-import { DB, Game, Player, Session } from "@/lib/types";
+import { DB, Game, Player, STUDIOS, Session, StudioId } from "@/lib/types";
 import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
@@ -410,15 +410,28 @@ function MatchRow({
 
 /* ---------- Jugadores ---------- */
 
+function StudioSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <select className="studio-select" aria-label="Studio" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Sin studio</option>
+      {(Object.keys(STUDIOS) as StudioId[]).map((id) => (
+        <option key={id} value={id}>{STUDIOS[id].label}</option>
+      ))}
+    </select>
+  );
+}
+
 function Players({ db, act }: { db: DB; act: Act }) {
   const [name, setName] = useState("");
+  const [studio, setStudio] = useState("");
   const [photo, setPhoto] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
-    if (await act({ action: "addPlayer", name, photo: photo || undefined })) {
+    if (await act({ action: "addPlayer", name, studio, photo: photo || undefined })) {
       setName("");
+      setStudio("");
       setPhoto("");
       if (fileRef.current) fileRef.current.value = "";
     }
@@ -432,6 +445,10 @@ function Players({ db, act }: { db: DB; act: Act }) {
           <label className="grow">
             Nombre
             <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
+          </label>
+          <label>
+            Studio
+            <StudioSelect value={studio} onChange={setStudio} />
           </label>
           <label>
             Foto (opcional)
@@ -469,7 +486,7 @@ function PlayerRow({ player, act }: { player: Player; act: Act }) {
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <li>
-      <Avatar player={player} size={52} />
+      <Avatar player={player} size={52} badge />
       <input
         className="grow inline"
         value={name}
@@ -480,6 +497,10 @@ function PlayerRow({ player, act }: { player: Player; act: Act }) {
           if (!(await act({ action: "updatePlayer", id: player.id, name }))) setName(player.name);
         }}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+      <StudioSelect
+        value={player.studio ?? ""}
+        onChange={(studio) => act({ action: "updatePlayer", id: player.id, studio })}
       />
       <input
         ref={fileRef}

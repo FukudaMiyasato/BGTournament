@@ -32,6 +32,8 @@ Las partidas se agrupan en **sesiones** (una jornada de juego con su fecha). En 
 
 El botón **Animar** del home muestra cómo estaba el ranking antes de la última sesión subida y desliza a cada jugador hasta su puesto actual. No se guarda nada aparte: se calcula con las partidas de cada sesión.
 
+Cada jugador puede tener un **studio** (Product, Movement, Understanding, Talento o Externo), que se elige en **Configuración → Jugadores** y se muestra como un ícono sobre su foto en el ranking.
+
 Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Ajustes** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 
 ## Desplegar en Vercel

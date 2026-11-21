@@ -62,6 +62,15 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 
 /* Avatar */
 .avatar { border-radius: 50%; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); }
+.avatar-wrap { position: relative; display: inline-flex; flex: none; }
+.avatar-wrap > .avatar { width: 100%; height: 100%; }
+/* Ícono del studio: abajo a la derecha de la foto */
+.studio-icon { display: inline-grid; place-items: center; border-radius: 50%; flex: none; width: 22px; height: 22px; }
+.studio-icon svg { width: 62%; height: 62%; display: block; }
+.avatar-wrap > .studio-icon { position: absolute; right: -4%; bottom: -4%; width: 40%; height: 40%; box-shadow: 0 0 0 2px var(--surface); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 0.8rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .studio-icon { width: 18px; height: 18px; }
 
 .game-thumb { border-radius: 10px; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); line-height: 1; }
 .with-thumb { display: flex; align-items: center; gap: 12px; }
@@ -86,7 +95,9 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .podium-spot .points { color: var(--muted); font-size: 0.9rem; }
 .podium-photo { position: relative; margin-bottom: 10px; width: 100%; max-width: 100px; }
 .place-1 .podium-photo { max-width: 132px; }
-.podium-photo .avatar { border: 4px solid var(--c); width: 100% !important; height: auto !important; aspect-ratio: 1; display: flex; }
+.podium-photo .avatar-wrap { width: 100% !important; height: auto !important; aspect-ratio: 1; display: flex; }
+.podium-photo .avatar { border: 4px solid var(--c); }
+.podium-photo .studio-icon { width: 30%; height: 30%; right: 2%; bottom: 2%; }
 .medal { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: #1a1a1a; font-weight: 800; font-size: 0.9rem; display: grid; place-items: center; }
 .place-1 { --c: var(--gold); padding-top: 28px; padding-bottom: 28px; border-color: #6b5420; }
 .place-1 strong { font-size: 1.25rem; }
@@ -143,6 +154,8 @@ input.inline:hover, input.inline:focus { border-color: var(--border); background
 .chip.on.win { background: #3d3214; border-color: var(--gold); }
 
 .points-input { width: 84px; }
+.studio-select { width: auto; }
+.list .studio-select { padding: 6px 8px; font-size: 0.85rem; }
 .session { margin-top: 16px; padding: 12px 16px; }
 .session.draft { border-color: #6b5420; }
 .session-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 10px; }

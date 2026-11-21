@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getMe } from "@/lib/auth";
 import { deletePhoto, loadDB, loadPhoto, saveDB, savePhoto } from "@/lib/store";
-import { Backup, DB, DEFAULT_PHOTO_ID, normalize } from "@/lib/types";
+import { Backup, DB, DEFAULT_PHOTO_ID, isStudio, normalize } from "@/lib/types";
 
 const newId = () => crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 const clean = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 60) : "");
@@ -36,7 +36,7 @@ async function apply(db: DB, b: Body) {
         await savePhoto(id, b.photo);
         photoV = 1;
       }
-      db.players.push({ id, name, photoV });
+      db.players.push({ id, name, photoV, ...(isStudio(b.studio) ? { studio: b.studio } : {}) });
       return;
     }
     case "updatePlayer": {
@@ -55,6 +55,10 @@ async function apply(db: DB, b: Body) {
       } else if (b.removePhoto) {
         await deletePhoto(p.id);
         p.photoV = 0;
+      }
+      if (b.studio !== undefined) {
+        if (isStudio(b.studio)) p.studio = b.studio;
+        else delete p.studio; // "" = sin studio
       }
       return;
     }
@@ -198,6 +202,7 @@ async function importBackup(db: DB, raw: Partial<Backup>) {
       db.players.push(p);
     }
     playerMap.set(inc.id, p.id);
+    if (isStudio(inc.studio) && !p.studio) p.studio = inc.studio;
     if (validPhoto(photos[inc.id])) {
       await savePhoto(p.id, photos[inc.id]);
       p.photoV = Date.now();

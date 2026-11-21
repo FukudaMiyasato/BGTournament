@@ -1,4 +1,15 @@
-export type Player = { id: string; name: string; photoV: number }; // photoV = 0 sin foto
+// Studios a los que puede pertenecer un participante
+export const STUDIOS = {
+  product: { label: "Product", color: "#3f7fe8" },
+  movement: { label: "Movement", color: "#f0703c" },
+  understanding: { label: "Understanding", color: "#9a5cf0" },
+  talento: { label: "Talento", color: "#22a67a" },
+  externo: { label: "Externo", color: "#6f7890" },
+} as const;
+export type StudioId = keyof typeof STUDIOS;
+export const isStudio = (v: unknown): v is StudioId => typeof v === "string" && v in STUDIOS;
+
+export type Player = { id: string; name: string; photoV: number; studio?: StudioId }; // photoV = 0 sin foto
 export type Game = { id: string; name: string; photoV?: number }; // sin photoV = sin foto
 // Una sesión es una jornada de juego: tiene fecha y agrupa partidas.
 // Sus puntos cuentan en el ranking público solo cuando está subida (published).

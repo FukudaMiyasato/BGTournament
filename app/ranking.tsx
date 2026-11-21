@@ -1,9 +1,9 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { Avatar } from "./ui";
+import { Avatar, StudioIcon } from "./ui";
 import { ELO, MODES, Mode, Ranked, formatDate, previousRanking, ranking } from "@/lib/stats";
-import { DB } from "@/lib/types";
+import { DB, STUDIOS, StudioId } from "@/lib/types";
 
 const HOLD_MS = 1100; // tiempo mostrando el ranking anterior antes de animar
 
@@ -85,6 +85,7 @@ export function Ranking({ db }: { db: DB }) {
   const podium = classified.length >= 3 ? classified.slice(0, 3) : [];
   const rest = podium.length ? rows.slice(3) : rows;
   const hasProvisional = rows.some((s) => s.provisional);
+  const studiosInUse = (Object.keys(STUDIOS) as StudioId[]).filter((id) => rows.some((s) => s.player.studio === id));
 
   return (
     <div ref={box}>
@@ -118,7 +119,7 @@ export function Ranking({ db }: { db: DB }) {
               className={`podium-spot place-${rows.indexOf(s) + 1} rank-${s.rank}`}
             >
               <div className="podium-photo">
-                <Avatar player={s.player} size={rows.indexOf(s) === 0 ? 132 : 100} />
+                <Avatar player={s.player} size={rows.indexOf(s) === 0 ? 132 : 100} badge />
                 <span className="medal">{s.rank}</span>
               </div>
               <strong>{s.player.name}</strong>
@@ -134,7 +135,7 @@ export function Ranking({ db }: { db: DB }) {
           {rest.map((s) => (
             <li key={s.player.id} data-flip={s.player.id}>
               <span className="pos">{s.provisional ? "–" : s.rank}</span>
-              <Avatar player={s.player} size={52} />
+              <Avatar player={s.player} size={52} badge />
               <span className="name">
                 {s.player.name}
                 <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
@@ -144,6 +145,13 @@ export function Ranking({ db }: { db: DB }) {
             </li>
           ))}
         </ol>
+      )}
+      {studiosInUse.length > 0 && (
+        <div className="legend">
+          {studiosInUse.map((id) => (
+            <span key={id}><StudioIcon studio={id} />{STUDIOS[id].label}</span>
+          ))}
+        </div>
       )}
       {hasProvisional && (
         <p className="muted rank-note">
