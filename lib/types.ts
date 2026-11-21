@@ -3,7 +3,7 @@ export const STUDIOS = {
   product: { label: "Product", color: "#3f7fe8" },
   movement: { label: "Movement", color: "#f0703c" },
   understanding: { label: "Understanding", color: "#9a5cf0" },
-  talento: { label: "Talento", color: "#22a67a" },
+  operaciones: { label: "Operaciones", color: "#22a67a" },
   externo: { label: "Externo", color: "#6f7890" },
 } as const;
 export type StudioId = keyof typeof STUDIOS;
@@ -43,6 +43,10 @@ export function normalize(raw: Partial<DB> | null | undefined): DB {
   const { publishedSeason = 0, ...rest } = (raw ?? {}) as Partial<DB> & { publishedSeason?: number };
   const db: DB = { ...emptyDB(), ...rest };
   db.sessions = [...db.sessions];
+  // El studio "Talento" pasó a llamarse "Operaciones"
+  db.players = db.players.map((p) =>
+    (p.studio as string) === "talento" ? { ...p, studio: "operaciones" as const } : p,
+  );
   db.matches = (db.matches as LegacyMatch[]).map(({ date, season, winnerIds, ...m }) => {
     let sessionId = m.sessionId;
     if (!sessionId) {
