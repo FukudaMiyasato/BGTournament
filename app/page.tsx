@@ -1,12 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { Avatar, DefaultPhoto, GameThumb, useDB } from "./ui";
-import { formatDate, gameStats, playerStats, sortedMatches } from "@/lib/stats";
+import { useEffect, useState } from "react";
+import { Avatar, DefaultPhoto, GameThumb, StudioIcon, useDB } from "./ui";
+import { STUDIOS } from "@/lib/types";
+import { formatDate, gameStats, playerStats, sortedMatches, studioWins } from "@/lib/stats";
 import { Ranking } from "./ranking";
 
 export default function Home() {
   const { db, error } = useDB();
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    fetch("/api/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((me) => setAdmin(!!me.isAdmin))
+      .catch(() => {});
+  }, []);
 
   if (error) return <main className="page"><p className="notice error">{error}</p></main>;
   if (!db) return <main className="page"><p className="muted center">Cargando…</p></main>;
@@ -25,30 +34,16 @@ export default function Home() {
     .filter((s) => s.played >= 3)
     .sort((a, b) => b.winRate - a.winRate || b.played - a.played)[0];
   const maxGame = games[0]?.played ?? 1;
+  const studios = studioWins(db);
+  const maxStudio = Math.max(1, ...studios.map((x) => x.wins));
 
   return (
     <DefaultPhoto value={db.defaultPhotoV}>
     <main className="page">
-      <header className="top">
-        <h1 className="brand">
-          <svg viewBox="0 0 48 48" aria-hidden="true">
-            <path className="cup" d="M15 7h18v9a9 9 0 0 1-18 0V7Z" />
-            <path className="handle" d="M15 10H9v3a6 6 0 0 0 6 6M33 10h6v3a6 6 0 0 1-6 6" />
-            <path className="cup" d="M22 24h4v7h-4zM16 31h16v5H16z" />
-            <path className="step" d="M4 44 14 37h4l-10 7H4Z" />
-            <path className="cup" d="M13 37h22v4H13z" />
-            <path className="star" d="m24 9.5 1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4L24 9.5Z" />
-          </svg>
-          <span><b>BG</b> TOURNAMENT</span>
-        </h1>
-        <Link href="/configuracion" className="pill config-link">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
-            <circle cx="12" cy="12" r="6.5" />
-          </svg>
-          Configuración
-        </Link>
+      <header className="logo-head">
+        <h1 className="sr-only">Boardgame Ranking</h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.webp" alt="Boardgame Ranking" width={1217} height={1293} />
       </header>
 
       {stats.length === 0 ? (
@@ -57,11 +52,24 @@ export default function Home() {
           <Link href="/configuracion" className="btn">Agregar jugadores</Link>
         </div>
       ) : (
-        <Ranking db={db} />
+        <Ranking db={db} admin={admin} />
       )}
 
       {matches.length > 0 && (
         <>
+          <h2>Studios</h2>
+          <section className="card studio-chart" aria-label="Partidas ganadas por studio">
+            {studios.map(({ studio, wins }) => (
+              <div key={studio} className="studio-bar" style={{ "--c": STUDIOS[studio].color } as React.CSSProperties}>
+                <strong>{wins}</strong>
+                <div className="track"><i style={{ height: `${(wins / maxStudio) * 100}%` }} /></div>
+                <StudioIcon studio={studio} />
+                <span>{STUDIOS[studio].label}</span>
+              </div>
+            ))}
+          </section>
+          <p className="muted chart-note">Partidas ganadas por los jugadores de cada studio.</p>
+
           <h2>Estadísticas</h2>
           <section className="tiles">
             <div className="card tile">

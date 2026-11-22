@@ -34,6 +34,12 @@ El botón **Animar** del home muestra cómo estaba el ranking antes de la últim
 
 Cada jugador puede tener un **studio** (Product, Movement, Understanding, Operaciones o Externo), que se elige en **Configuración → Jugadores** y se muestra como un ícono sobre su foto en el ranking.
 
+En el home, la sección **Studios** muestra un gráfico de barras con las partidas ganadas por cada studio (los externos no entran), y la etiqueta **MVP** marca al jugador de cada studio que más ganó en los últimos 30 días.
+
+Cada jugador puede tener además una **foto grande con fondo transparente** (PNG o WebP), que se sube en **Configuración → Jugadores** y se sirve en `/api/photo/<id>full`. Todavía no se muestra en el home.
+
+Los botones de animar y de configuración solo se ven con sesión de administrador (arriba a la derecha). Para iniciar sesión se entra directamente a `/configuracion`.
+
 Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Ajustes** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 
 ## Desplegar en Vercel

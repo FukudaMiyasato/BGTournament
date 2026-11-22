@@ -1,4 +1,4 @@
-import { DB, Game, Match, Player, Session } from "./types";
+import { DB, Game, Match, Player, STUDIOS, Session, StudioId } from "./types";
 
 export type PlayerStat = {
   player: Player;
@@ -105,7 +105,7 @@ export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[]
 // Formas de ordenar el ranking
 export const MODES = {
   elo: "Elo",
-  wins: "Victorias",
+  wins: "Partidas ganadas",
   rate: "Promedio de victoria",
   points: "Puntos",
 } as const;
@@ -191,4 +191,33 @@ export function sortedMatches(db: DB): Match[] {
 export function formatDate(d: string) {
   const [y, m, day] = d.split("-").map(Number);
   return new Date(y, m - 1, day).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+}
+
+// Studios que compiten entre sí (los externos no son un área)
+export const TEAM_STUDIOS = (Object.keys(STUDIOS) as StudioId[]).filter((id) => id !== "externo");
+
+// Victorias (primeros puestos) de cada studio, sumando las de sus jugadores
+export function studioWins(db: DB): { studio: StudioId; wins: number }[] {
+  const studioOf = new Map(db.players.map((p) => [p.id, p.studio]));
+  return TEAM_STUDIOS.map((studio) => ({
+    studio,
+    wins: db.matches.filter((m) => m.places[0] && studioOf.get(m.places[0]) === studio).length,
+  }));
+}
+
+export const MVP_DAYS = 30;
+// MVP de cada studio: quien más partidas ganó en los últimos 30 días (si empatan, lo son todos)
+export function mvps(db: DB, today = new Date()): Set<string> {
+  const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - MVP_DAYS);
+  const since = [from.getFullYear(), from.getMonth() + 1, from.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+  const recent = new Set(db.sessions.filter((s) => s.date >= since).map((s) => s.id));
+  const wins = new Map<string, number>();
+  for (const m of db.matches)
+    if (recent.has(m.sessionId) && m.places[0]) wins.set(m.places[0], (wins.get(m.places[0]) ?? 0) + 1);
+  const best = new Map<StudioId, number>();
+  for (const p of db.players)
+    if (p.studio) best.set(p.studio, Math.max(best.get(p.studio) ?? 0, wins.get(p.id) ?? 0));
+  return new Set(
+    db.players.filter((p) => p.studio && wins.get(p.id) && wins.get(p.id) === best.get(p.studio)).map((p) => p.id)
+  );
 }

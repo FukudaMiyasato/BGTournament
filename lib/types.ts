@@ -9,7 +9,9 @@ export const STUDIOS = {
 export type StudioId = keyof typeof STUDIOS;
 export const isStudio = (v: unknown): v is StudioId => typeof v === "string" && v in STUDIOS;
 
-export type Player = { id: string; name: string; photoV: number; studio?: StudioId }; // photoV = 0 sin foto
+// photoV = 0 sin foto; fullV = versión de la foto grande con transparencia (sin fullV = no tiene)
+export type Player = { id: string; name: string; photoV: number; studio?: StudioId; fullV?: number };
+export const fullPhotoId = (playerId: string) => `${playerId}full`;
 export type Game = { id: string; name: string; photoV?: number }; // sin photoV = sin foto
 // Una sesión es una jornada de juego: tiene fecha y agrupa partidas.
 // Sus puntos cuentan en el ranking público solo cuando está subida (published).

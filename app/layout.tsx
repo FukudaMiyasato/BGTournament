@@ -5,7 +5,7 @@ import "./globals.css";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "BG Tournament",
+  title: "Boardgame Ranking",
   description: "Ranking del torneo de juegos de mesa",
 };
 export const viewport: Viewport = { themeColor: "#12141c" };

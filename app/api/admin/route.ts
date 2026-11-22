@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { getMe } from "@/lib/auth";
 import { deletePhoto, loadDB, loadPhoto, saveDB, savePhoto } from "@/lib/store";
-import { Backup, DB, DEFAULT_PHOTO_ID, isStudio, normalize } from "@/lib/types";
+import { Backup, DB, DEFAULT_PHOTO_ID, fullPhotoId, isStudio, normalize } from "@/lib/types";
 
 const newId = () => crypto.randomUUID().replace(/-/g, "").slice(0, 10);
 const clean = (v: unknown) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, 60) : "");
@@ -56,6 +56,14 @@ async function apply(db: DB, b: Body) {
         await deletePhoto(p.id);
         p.photoV = 0;
       }
+      // Foto grande: solo formatos con transparencia
+      if (validPhoto(b.full) && /^data:image\/(png|webp);/.test(b.full)) {
+        await savePhoto(fullPhotoId(p.id), b.full);
+        p.fullV = Date.now();
+      } else if (b.removeFull) {
+        await deletePhoto(fullPhotoId(p.id));
+        delete p.fullV;
+      }
       if (b.studio !== undefined) {
         if (isStudio(b.studio)) p.studio = b.studio;
         else delete p.studio; // "" = sin studio
@@ -67,6 +75,7 @@ async function apply(db: DB, b: Body) {
         throw new Fail("Este jugador tiene partidas registradas. Quítalo de esas partidas primero.");
       db.players = db.players.filter((p) => p.id !== b.id);
       await deletePhoto(String(b.id)).catch(() => {});
+      await deletePhoto(fullPhotoId(String(b.id))).catch(() => {});
       return;
     }
     case "addGame": {
@@ -207,6 +216,11 @@ async function importBackup(db: DB, raw: Partial<Backup>) {
       await savePhoto(p.id, photos[inc.id]);
       p.photoV = Date.now();
     }
+    const full = photos[fullPhotoId(inc.id)];
+    if (validPhoto(full)) {
+      await savePhoto(fullPhotoId(p.id), full);
+      p.fullV = Date.now();
+    }
   }
   const gameMap = new Map<string, string>();
   for (const inc of data.games) {
@@ -257,6 +271,7 @@ export async function GET() {
   const db = await loadDB();
   const photos: Record<string, string> = {};
   const ids = [...db.players, ...db.games].filter((x) => x.photoV).map((x) => x.id);
+  ids.push(...db.players.filter((x) => x.fullV).map((x) => fullPhotoId(x.id)));
   if (db.defaultPhotoV) ids.push(DEFAULT_PHOTO_ID);
   for (const id of ids) {
     const photo = await loadPhoto(id);

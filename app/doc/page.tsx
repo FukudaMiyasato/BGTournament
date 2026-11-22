@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ELO, eloChanges, expected } from "@/lib/stats";
+import { ELO, MVP_DAYS, eloChanges, expected } from "@/lib/stats";
 
 export const metadata: Metadata = {
-  title: "Cómo funciona · BG Tournament",
+  title: "Cómo funciona · Boardgame Ranking",
   description: "Cómo se calcula el ranking y el Elo del torneo",
 };
 
@@ -44,7 +44,7 @@ export default function Doc() {
 
       <article className="doc">
         <p>
-          BG Tournament lleva el ranking de nuestras partidas de juegos de mesa. Las partidas se registran por
+          Boardgame Ranking lleva el ranking de nuestras partidas de juegos de mesa. Las partidas se registran por
           sesiones (una jornada de juego) y cuentan en el ranking cuando la sesión se sube.
         </p>
 
@@ -52,7 +52,7 @@ export default function Doc() {
         <ul>
           <li>Solo aparecen quienes jugaron al menos una partida.</li>
           <li>
-            Se puede ordenar por <strong>Elo</strong> (por defecto), <strong>Victorias</strong>,{" "}
+            Se puede ordenar por <strong>Elo</strong> (por defecto), <strong>Partidas ganadas</strong>,{" "}
             <strong>Promedio de victoria</strong> o <strong>Puntos</strong>.
           </li>
           <li>
@@ -162,7 +162,7 @@ export default function Doc() {
 
         <h2>Los otros modos</h2>
         <ul>
-          <li><strong>Victorias</strong>: cantidad de primeros puestos.</li>
+          <li><strong>Partidas ganadas</strong>: cantidad de primeros puestos.</li>
           <li><strong>Promedio de victoria</strong>: primeros puestos entre partidas jugadas.</li>
           <li>
             <strong>Puntos</strong>: cada puesto da puntos (por defecto 3, 2 y 1 para 1.º, 2.º y 3.º). Los
@@ -177,8 +177,15 @@ export default function Doc() {
             partidas entran al ranking.
           </li>
           <li>
-            El ícono sobre la foto de cada jugador indica su studio: Product, Movement, Understanding,
-            Operaciones o Externo.
+            Cada jugador pertenece a un studio: Product, Movement, Understanding, Operaciones o Externo.
+          </li>
+          <li>
+            El gráfico de <strong>Studios</strong> suma las partidas ganadas por los jugadores de cada studio.
+            Los externos no entran en el gráfico.
+          </li>
+          <li>
+            La etiqueta <strong>MVP</strong> marca al jugador de cada studio que más partidas ganó en los
+            últimos {MVP_DAYS} días. Si hay empate, la llevan todos los empatados.
           </li>
         </ul>
       </article>

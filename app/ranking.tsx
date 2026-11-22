@@ -2,7 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { Avatar, StudioPill } from "./ui";
-import { ELO, MODES, Mode, Ranked, formatDate, previousRanking, ranking } from "@/lib/stats";
+import Link from "next/link";
+import { ELO, MODES, MVP_DAYS, Mode, Ranked, formatDate, mvps, previousRanking, ranking } from "@/lib/stats";
 import { DB, STUDIOS, StudioId } from "@/lib/types";
 
 const TOP = 10; // espacios que siempre ocupa el ranking
@@ -37,7 +38,8 @@ function Laurel({ n }: { n: number }) {
   );
 }
 
-export function Ranking({ db }: { db: DB }) {
+// admin: muestra arriba a la derecha los botones de animar y configuración
+export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
   const [view, setView] = useState<"now" | "prev">("now");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<Mode>("elo");
@@ -47,6 +49,7 @@ export function Ranking({ db }: { db: DB }) {
 
   const now = ranking(db, mode);
   const { last, number, prev } = previousRanking(db, mode);
+  const mvp = mvps(db);
   const prevById = new Map(prev.map((s) => [s.player.id, s]));
   const rows = view === "now" ? now : prev;
   const showChange = view === "now" && prev.length > 0;
@@ -101,42 +104,55 @@ export function Ranking({ db }: { db: DB }) {
   const studiosInUse = (Object.keys(STUDIOS) as StudioId[]).filter((id) => rows.some((s) => s.player.studio === id));
 
   return (
-    <div ref={box}>
+    <div ref={box} className="rank-col">
+      {admin && (
+        <div className="admin-tools">
+          {now.length > 0 && (
+            <button onClick={animate} disabled={busy} title="Animar" aria-label="Animar">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7L8 5Z" fill="currentColor" stroke="none" /></svg>
+            </button>
+          )}
+          <Link href="/configuracion" title="Configuración" aria-label="Configuración">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+              <circle cx="12" cy="12" r="6.5" />
+            </svg>
+          </Link>
+        </div>
+      )}
       <div className="rank-bar">
-        <span className="pill session-pill">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+        <span className="last-session">
           {now.length === 0 ? (
-            <span>Aún no hay sesiones subidas</span>
+            "Aún no hay sesiones subidas"
           ) : view === "prev" ? (
-            <span>{number > 1 ? `Antes de la sesión ${number}…` : "Antes de la primera sesión…"}</span>
+            number > 1 ? `Antes de la sesión ${number}…` : "Antes de la primera sesión…"
           ) : (
-            <span><strong>Sesión {number}</strong> · {last && formatDate(last.date)}</span>
+            <>Última sesión: <strong>{last && formatDate(last.date)}</strong></>
           )}
         </span>
         <label className="pill mode">
-          <span className="sr-only">Ordenar ranking por</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Z" /><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5" /></svg>
+          <span className="sr-only">Tipo de ranking</span>
           <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} disabled={busy}>
             {(Object.keys(MODES) as Mode[]).map((m) => (
-              <option key={m} value={m}>Ranking: {MODES[m]}</option>
+              <option key={m} value={m}>{MODES[m]}</option>
             ))}
           </select>
         </label>
-        {now.length > 0 && (
-          <button className="pill animate" onClick={animate} disabled={busy}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5-12-7.5Z" fill="currentColor" /></svg>
-            Animar
-          </button>
-        )}
       </div>
 
       <ol className="ranking">
         {shown.map((s) => (
           <li key={s.player.id} data-flip={s.player.id} className={s.rank <= 3 ? `podio podio-${s.rank}` : ""}>
             {s.rank <= 3 ? <Laurel n={s.rank} /> : <span className="pos">{s.rank}</span>}
-            <Avatar player={s.player} size={64} badge />
+            <Avatar player={s.player} size={56} badge />
             <span className="name">
-              {s.player.name}
+              <span className="who">
+                {s.player.name}
+                {mvp.has(s.player.id) && (
+                  <em className="mvp" title={`Quien más ganó de su studio en los últimos ${MVP_DAYS} días`}>MVP</em>
+                )}
+              </span>
               <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
             </span>
             <span className="tags">

@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { signIn, signOut } from "next-auth/react";
 import { Avatar, DefaultPhoto, GameThumb, useDB } from "../ui";
 import { formatDate, gameStats, playerStats, sortedSessions } from "@/lib/stats";
-import { DB, Game, Player, STUDIOS, Session, StudioId } from "@/lib/types";
+import { fullPhotoId, DB, Game, Player, STUDIOS, Session, StudioId } from "@/lib/types";
 import type { Me } from "@/lib/auth";
 
 type Act = (body: Record<string, unknown>) => Promise<boolean>;
@@ -22,6 +22,21 @@ async function fileToPhoto(file: File): Promise<string> {
     .getContext("2d")!
     .drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 400, 400);
   return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+// Foto grande: conserva la transparencia y se reduce hasta pesar poco
+async function fileToFull(file: File): Promise<string> {
+  const img = await createImageBitmap(file);
+  for (let max = 900; ; max = Math.round(max * 0.8)) {
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let url = canvas.toDataURL("image/webp", 0.9);
+    if (!url.startsWith("data:image/webp")) url = canvas.toDataURL("image/png"); // Safari no exporta WebP
+    if (url.length < 900_000 || max < 300) return url;
+  }
 }
 
 export default function Config() {
@@ -484,6 +499,7 @@ function Players({ db, act }: { db: DB; act: Act }) {
 function PlayerRow({ player, act }: { player: Player; act: Act }) {
   const [name, setName] = useState(player.name);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fullRef = useRef<HTMLInputElement>(null);
   return (
     <li>
       <Avatar player={player} size={52} badge />
@@ -519,6 +535,33 @@ function PlayerRow({ player, act }: { player: Player; act: Act }) {
       {player.photoV > 0 && (
         <button className="btn ghost small" onClick={() => act({ action: "updatePlayer", id: player.id, removePhoto: true })}>
           Quitar foto
+        </button>
+      )}
+      <input
+        ref={fullRef}
+        type="file"
+        accept="image/png,image/webp"
+        hidden
+        onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (f) await act({ action: "updatePlayer", id: player.id, full: await fileToFull(f) });
+          e.target.value = "";
+        }}
+      />
+      {player.fullV && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="full-thumb" src={`/api/photo/${fullPhotoId(player.id)}?v=${player.fullV}`} alt={`Foto grande de ${player.name}`} />
+      )}
+      <button
+        className="btn ghost small"
+        title="Foto de cuerpo o busto con fondo transparente (PNG o WebP)"
+        onClick={() => fullRef.current?.click()}
+      >
+        {player.fullV ? "Cambiar foto grande" : "Subir foto grande"}
+      </button>
+      {player.fullV && (
+        <button className="btn ghost small" onClick={() => act({ action: "updatePlayer", id: player.id, removeFull: true })}>
+          Quitar foto grande
         </button>
       )}
       <button
