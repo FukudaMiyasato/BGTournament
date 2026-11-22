@@ -134,7 +134,7 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
           mode={mode}
           mvp={mvp}
           defaultV={defaultV}
-          fileName={`ranking-sesion-${number}.mp4`}
+          fileBase={`ranking-${last?.date ?? "sesion"}`}
           onClose={() => setExporting(false)}
           onAnimate={animate}
         />

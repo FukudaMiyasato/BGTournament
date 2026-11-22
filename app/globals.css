@@ -191,10 +191,13 @@ button.pill:disabled { opacity: 0.5; cursor: default; }
 .modal .choice input[type="number"] { width: 68px; padding: 6px 8px; }
 .modal video { display: block; width: 100%; max-height: 46dvh; object-fit: contain; border-radius: 12px; background: #000; }
 /* Vista previa del video con máscara: solo se enseña la mitad de arriba (el color) */
-.modal .preview.clear { max-height: 40dvh; overflow: hidden; border-radius: 12px; background: repeating-conic-gradient(#2a3160 0 25%, #1b2145 0 50%) 0 0 / 20px 20px; }
-.modal .preview.clear video { max-height: none; border-radius: 0; background: none; mix-blend-mode: screen; clip-path: inset(0 0 50% 0); margin-bottom: -100%; }
-.modal .notice { display: grid; gap: 8px; margin-bottom: 0; font-size: 0.9rem; }
-.modal .notice code { display: block; padding: 8px 10px; overflow-x: auto; white-space: nowrap; background: var(--bg); user-select: all; }
+.modal .preview.clear { overflow: hidden; border-radius: 12px; background: repeating-conic-gradient(#2a3160 0 25%, #1b2145 0 50%) 0 0 / 20px 20px; }
+.modal .preview.clear video { max-height: none; border-radius: 0; background: none; mix-blend-mode: screen; }
+.modal { overflow-x: hidden; }
+.modal .notice { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 0; font-size: 0.9rem; }
+.modal .command { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.modal .command .btn { flex: none; }
+.modal .notice code { flex: 1; min-width: 0; display: block; padding: 8px 10px; overflow-x: auto; white-space: nowrap; background: var(--bg); user-select: all; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* Gráfico de studios */

@@ -43,7 +43,7 @@ Los botones de video y de configuración solo se ven con sesión de administrado
 **Video con fondo transparente.** El MP4 no guarda transparencia, así que con la casilla "Fondo transparente" la web exporta un archivo `-alfa.mp4` (color arriba, máscara abajo) y hay que convertirlo en la Mac:
 
 ```bash
-npm run transparente -- ~/Downloads/ranking-sesion-2-alfa.mp4
+npm run transparente -- Downloads/ranking-2026-11-15-104233-alfa.mp4
 ```
 
 Eso crea al lado un `-transparente.mov` (HEVC con canal alfa), que el iPhone y Edits de Instagram aceptan como capa encima de otro video. Necesita macOS y `ffmpeg` (`brew install ffmpeg`). Para iniciar sesión se entra directamente a `/configuracion`.

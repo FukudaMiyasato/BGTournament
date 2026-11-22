@@ -491,12 +491,12 @@ async function renderVideo(
 }
 
 type Props = Omit<ExportInput, "from" | "to"> & {
-  fileName: string;
+  fileBase: string; // nombre del archivo sin extensión; se le agrega la hora para que no se repita
   onClose: () => void;
   onAnimate: () => void; // animación en la propia página
 };
 
-export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
+export function ExportModal({ fileBase, onClose, onAnimate, ...data }: Props) {
   const total = data.now.length;
   const [scope, setScope] = useState<"all" | "range">("all");
   const [from, setFrom] = useState(1);
@@ -506,6 +506,7 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
   const [video, setVideo] = useState<{ url: string; file: File; silent: boolean; clear: boolean } | null>(null);
   const [sound, setSound] = useState(true);
   const [clear, setClear] = useState(false);
+  const [copied, setCopied] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -519,10 +520,13 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
   const run = async () => {
     setError("");
     setVideo(null);
+    setCopied(false);
     setProgress(0);
     try {
       const { blob, silent } = await renderVideo({ ...data, ...range }, sound, clear, setProgress);
-      const name = clear ? fileName.replace(/\.mp4$/, "-alfa.mp4") : fileName;
+      // Fecha de la sesión + hora de creación: cada video tiene un nombre distinto
+      const time = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
+      const name = `${fileBase}-${time}${clear ? "-alfa" : ""}.mp4`;
       const file = new File([blob], name, { type: "video/mp4" });
       setVideo({ url: URL.createObjectURL(blob), file, silent, clear });
     } catch (e) {
@@ -531,6 +535,7 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
     setProgress(null);
   };
 
+  const command = `npm run transparente -- Downloads/${video?.file.name ?? ""}`;
   const canShare = !!video && typeof navigator.canShare === "function" && navigator.canShare({ files: [video.file] });
   const num = (value: number, set: (n: number) => void, label: string) => (
     <input
@@ -580,7 +585,19 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
       )}
       {video && (
         <div className={video.clear ? "preview clear" : "preview"}>
-          <video src={video.url} loop playsInline controls={!video.clear} autoPlay={video.clear} muted={video.clear} />
+          <video
+            src={video.url}
+            loop
+            playsInline
+            controls={!video.clear}
+            autoPlay={video.clear}
+            muted={video.clear}
+            onLoadedMetadata={(e) => {
+              // Con máscara, el recuadro tiene la proporción de la mitad de arriba
+              const v = e.currentTarget;
+              if (video.clear) v.parentElement!.style.aspectRatio = `${v.videoWidth} / ${v.videoHeight / 2}`;
+            }}
+          />
         </div>
       )}
       {video?.clear && (
@@ -589,7 +606,22 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
             Este archivo todavía no es transparente: trae el color y la máscara. Descárgalo y, en la carpeta del
             proyecto, ejecuta en la Terminal:
           </p>
-          <code>npm run transparente -- ~/Downloads/{video.file.name}</code>
+          <div className="command">
+            <code>{command}</code>
+            <button
+              className="btn ghost small"
+              onClick={(e) => {
+                // Si el navegador no deja copiar, al menos queda seleccionado para Cmd+C
+                const code = e.currentTarget.previousElementSibling!;
+                navigator.clipboard.writeText(command).then(
+                  () => setCopied(true),
+                  () => getSelection()?.selectAllChildren(code)
+                );
+              }}
+            >
+              {copied ? "Copiado ✓" : "Copiar"}
+            </button>
+          </div>
           <p>Eso crea al lado un <strong>.mov</strong> con fondo transparente, listo para pasarlo al iPhone.</p>
         </div>
       )}

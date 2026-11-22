@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Convierte el MP4 "-alfa" que exporta la web (color arriba, máscara abajo) en un MOV HEVC con
 // fondo transparente, que es el formato que aceptan el iPhone y Edits de Instagram.
-// Uso: npm run transparente -- ruta/al/ranking-sesion-2-alfa.mp4
+// Uso: npm run transparente -- Downloads/ranking-2026-11-15-104233-alfa.mp4
 // Necesita macOS (avconvert) y ffmpeg (brew install ffmpeg).
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -15,9 +15,14 @@ const fail = (msg) => {
 const has = (cmd) => spawnSync("which", [cmd]).status === 0;
 
 const arg = process.argv[2];
-if (!arg) fail("Indica el archivo: npm run transparente -- ~/Downloads/ranking-sesion-2-alfa.mp4");
-const input = path.resolve(arg.replace(/^~(?=\/)/, homedir()));
-if (!existsSync(input)) fail(`No existe el archivo ${input}`);
+if (!arg) fail("Indica el archivo: npm run transparente -- Downloads/ranking-2026-11-15-104233-alfa.mp4");
+// Se acepta la ruta tal cual, relativa a la carpeta personal (Downloads/archivo.mp4) o solo el nombre
+// de un archivo que esté en Descargas
+const typed = arg.replace(/^~(?=\/)/, homedir());
+const input = [path.resolve(typed), path.join(homedir(), typed), path.join(homedir(), "Downloads", path.basename(typed))].find(
+  (p) => existsSync(p)
+);
+if (!input) fail(`No encuentro el archivo ${arg} (lo busqué aquí, en tu carpeta personal y en Descargas).`);
 if (process.platform !== "darwin" || !has("avconvert")) fail("Este paso solo funciona en una Mac (usa avconvert).");
 if (!has("ffmpeg")) fail("Falta ffmpeg. Instálalo con: brew install ffmpeg");
 
