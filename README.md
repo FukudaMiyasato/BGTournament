@@ -38,7 +38,7 @@ En el home, la sección **Studios** muestra un gráfico de barras con las partid
 
 Cada jugador puede tener además una **foto grande con fondo transparente** (PNG o WebP), que se sube en **Configuración → Jugadores** y se sirve en `/api/photo/<id>full`. Todavía no se muestra en el home.
 
-Los botones de animar y de configuración solo se ven con sesión de administrador (arriba a la derecha). Para iniciar sesión se entra directamente a `/configuracion`.
+Los botones de video y de configuración solo se ven con sesión de administrador (arriba a la derecha). El de **video** abre un modal para crear un MP4 con solo el cuadro del ranking animándose de la sesión anterior a la actual (completo o un rango de posiciones), pensado para ponerlo encima de otro video; se genera en el navegador (Chrome, Edge o Safari actualizados). Desde el mismo modal se puede animar el ranking en la página. Para iniciar sesión se entra directamente a `/configuracion`.
 
 Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Ajustes** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 

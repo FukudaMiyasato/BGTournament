@@ -1,7 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
-import { Avatar, StudioPill } from "./ui";
+import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { Avatar, DefaultPhoto, StudioPill } from "./ui";
+import { ExportModal } from "./export";
 import Link from "next/link";
 import { ELO, MODES, MVP_DAYS, Mode, Ranked, formatDate, mvps, previousRanking, ranking } from "@/lib/stats";
 import { DB, STUDIOS, StudioId } from "@/lib/types";
@@ -43,6 +44,8 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
   const [view, setView] = useState<"now" | "prev">("now");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<Mode>("elo");
+  const [exporting, setExporting] = useState(false); // modal del video
+  const defaultV = useContext(DefaultPhoto);
   const [all, setAll] = useState(false); // ver todos los puestos, no solo los 10 primeros
   const box = useRef<HTMLDivElement>(null);
   const before = useRef<Map<string, DOMRect> | null>(null);
@@ -108,8 +111,11 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
       {admin && (
         <div className="admin-tools">
           {now.length > 0 && (
-            <button onClick={animate} disabled={busy} title="Animar" aria-label="Animar">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7L8 5Z" fill="currentColor" stroke="none" /></svg>
+            <button onClick={() => setExporting(true)} disabled={busy} title="Video del ranking" aria-label="Video del ranking">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="2.5" y="6" width="13" height="12" rx="2.5" />
+                <path d="m15.5 10.5 6-3.5v10l-6-3.5" />
+              </svg>
             </button>
           )}
           <Link href="/configuracion" title="Configuración" aria-label="Configuración">
@@ -120,6 +126,18 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
             </svg>
           </Link>
         </div>
+      )}
+      {exporting && (
+        <ExportModal
+          now={now}
+          prev={prev}
+          mode={mode}
+          mvp={mvp}
+          defaultV={defaultV}
+          fileName={`ranking-sesion-${number}.mp4`}
+          onClose={() => setExporting(false)}
+          onAnimate={animate}
+        />
       )}
       <div className="rank-bar">
         <span className="last-session">
