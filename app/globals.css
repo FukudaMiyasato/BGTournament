@@ -57,6 +57,9 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .btn.danger { background: transparent; color: var(--danger); border-color: #5a3038; }
 .btn.danger:hover { background: #40222a; }
 .btn.small { padding: 6px 10px; font-size: 0.85rem; }
+.quiet { background: none; border: 0; padding: 6px 8px; border-radius: 8px; color: var(--muted); font-size: 0.8rem; cursor: pointer; white-space: nowrap; }
+.quiet:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+.quiet:disabled { opacity: 0.5; cursor: default; }
 .link { background: none; border: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -116,6 +119,26 @@ h2 { font-size: 1.05rem; margin: 32px 0 12px; color: var(--muted); font-weight: 
 .ranking .name small { color: var(--muted); font-weight: 400; }
 .ranking .points { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .ranking .points small { color: var(--muted); font-weight: 400; }
+
+.ranking li.free { min-height: 77px; }
+.ranking li.free .pos { opacity: 0.45; }
+.free-photo { width: 52px; height: 52px; border-radius: 50%; border: 2px dashed var(--border); flex: none; }
+.free-name { width: 96px; height: 10px; border-radius: 5px; background: var(--surface-2); }
+.ranking + .center { margin-top: 6px; }
+
+/* Documentación */
+.doc { display: grid; gap: 14px; }
+.doc h2 { margin-bottom: 0; }
+.doc p, .doc li { color: #cfd4e2; line-height: 1.6; }
+.doc ul, .doc ol { display: grid; gap: 6px; padding-left: 20px; }
+.doc ul { list-style: disc; }
+.doc ol { list-style: decimal; }
+.doc strong { color: var(--text); }
+.formula { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--bg); border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9rem; overflow-x: auto; white-space: nowrap; }
+.doc .up { color: #5fd38d; }
+.doc .down { color: var(--danger); }
+.foot { margin-top: 40px; text-align: center; font-size: 0.85rem; }
+.foot a { color: var(--muted); text-decoration: underline; }
 
 /* Estadísticas */
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }

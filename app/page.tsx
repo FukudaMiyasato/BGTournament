@@ -63,7 +63,7 @@ export default function Home() {
               <div className="card tile">
                 <span className="label">Quien más jugó</span>
                 <strong className="who"><Avatar player={mostPlayed.player} size={32} />{mostPlayed.player.name}</strong>
-                <span className="muted">{mostPlayed.played} partidas</span>
+                <span className="muted">{mostPlayed.played} {mostPlayed.played === 1 ? "partida" : "partidas"}</span>
               </div>
             )}
             {mostLosses && mostLosses.losses > 0 && (
@@ -127,6 +127,9 @@ export default function Home() {
           </div>
         </>
       )}
+      <footer className="foot">
+        <Link href="/doc">¿Cómo se calcula el ranking?</Link>
+      </footer>
     </main>
     </DefaultPhoto>
   );

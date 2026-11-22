@@ -5,6 +5,7 @@ import { Avatar, StudioIcon } from "./ui";
 import { ELO, MODES, Mode, Ranked, formatDate, previousRanking, ranking } from "@/lib/stats";
 import { DB, STUDIOS, StudioId } from "@/lib/types";
 
+const TOP = 10; // espacios que siempre ocupa el ranking
 const HOLD_MS = 1100; // tiempo mostrando el ranking anterior antes de animar
 
 function Change({ now, prev }: { now: Ranked; prev: Ranked | undefined }) {
@@ -20,6 +21,7 @@ export function Ranking({ db }: { db: DB }) {
   const [view, setView] = useState<"now" | "prev">("now");
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<Mode>("elo");
+  const [all, setAll] = useState(false); // ver todos los puestos, no solo los 10 primeros
   const box = useRef<HTMLDivElement>(null);
   const before = useRef<Map<string, DOMRect> | null>(null);
 
@@ -74,16 +76,11 @@ export function Ranking({ db }: { db: DB }) {
     return () => clearTimeout(t);
   }, [view]);
 
-  if (now.length === 0)
-    return (
-      <div className="card center empty">
-        <p>Aún no hay sesiones subidas. El ranking aparecerá con la primera.</p>
-      </div>
-    );
-
-  const classified = rows.filter((s) => !s.provisional);
+  const shown = all ? rows : rows.slice(0, TOP);
+  const classified = shown.filter((s) => !s.provisional);
   const podium = classified.length >= 3 ? classified.slice(0, 3) : [];
-  const rest = podium.length ? rows.slice(3) : rows;
+  const rest = podium.length ? shown.slice(3) : shown;
+  const free = Math.max(0, TOP - shown.length); // espacios aún sin jugador
   const hasProvisional = rows.some((s) => s.provisional);
   const studiosInUse = (Object.keys(STUDIOS) as StudioId[]).filter((id) => rows.some((s) => s.player.studio === id));
 
@@ -91,7 +88,9 @@ export function Ranking({ db }: { db: DB }) {
     <div ref={box}>
       <div className="rank-bar">
         <span className="muted">
-          {view === "prev"
+          {now.length === 0
+            ? "Aún no hay sesiones subidas. El ranking aparecerá con la primera."
+            : view === "prev"
             ? number > 1 ? `Así estaba antes de la sesión ${number}…` : "Antes de la primera sesión…"
             : showChange
               ? `${title} · cambios respecto a la sesión anterior`
@@ -105,10 +104,10 @@ export function Ranking({ db }: { db: DB }) {
             ))}
           </select>
         </label>
-        <button className="btn small" onClick={animate} disabled={busy}>▶ Animar</button>
+        {now.length > 0 && (
+          <button className="quiet" onClick={animate} disabled={busy}>▶ Animar</button>
+        )}
       </div>
-
-      {rows.length === 0 && <p className="card center muted empty">Todavía sin ranking</p>}
 
       {podium.length > 0 && (
         <section className="podium">
@@ -130,11 +129,11 @@ export function Ranking({ db }: { db: DB }) {
         </section>
       )}
 
-      {rest.length > 0 && (
+      {rest.length + free > 0 && (
         <ol className="card ranking">
           {rest.map((s) => (
             <li key={s.player.id} data-flip={s.player.id}>
-              <span className="pos">{s.provisional ? "–" : s.rank}</span>
+              <span className="pos">{s.rank}</span>
               <Avatar player={s.player} size={52} badge />
               <span className="name">
                 {s.player.name}
@@ -144,7 +143,21 @@ export function Ranking({ db }: { db: DB }) {
               <span className="points">{s.text}<small> {s.unit}</small></span>
             </li>
           ))}
+          {Array.from({ length: free }, (_, i) => (
+            <li key={`free${i}`} className="free" aria-hidden="true">
+              <span className="pos">{shown.length + i + 1}</span>
+              <span className="free-photo" />
+              <span className="free-name" />
+            </li>
+          ))}
         </ol>
+      )}
+      {rows.length > TOP && (
+        <div className="center">
+          <button className="quiet" onClick={() => setAll(!all)} disabled={busy}>
+            {all ? `Ver solo los ${TOP} primeros` : `Ver todos (${rows.length})`}
+          </button>
+        </div>
       )}
       {studiosInUse.length > 0 && (
         <div className="legend">
@@ -155,7 +168,7 @@ export function Ranking({ db }: { db: DB }) {
       )}
       {hasProvisional && (
         <p className="muted rank-note">
-          Provisional: con menos de {ELO.minGames} partidas todavía no se entra en la clasificación.
+          Provisional: con menos de {ELO.minGames} partidas se queda debajo de los clasificados.
         </p>
       )}
     </div>

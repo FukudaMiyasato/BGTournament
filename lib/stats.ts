@@ -10,6 +10,7 @@ export type PlayerStat = {
   thirds: number;
   losses: number; // jugó y no quedó primero
   winRate: number; // 0..1
+  since: Record<Mode, number>; // n.º de la partida (en orden) en que llegó a su valor actual en cada modo
 };
 export type GameStat = { game: Game; played: number; topWinner: Player | null; topWins: number };
 
@@ -22,39 +23,51 @@ export const ELO = {
   minGames: 3, // partidas mínimas para aparecer clasificado (Elo y promedio)
 };
 // Probabilidad de que `a` le gane a `b` según sus puntajes
-const expected = (a: number, b: number) => 1 / (1 + 10 ** ((b - a) / 400));
+export const expected = (a: number, b: number) => 1 / (1 + 10 ** ((b - a) / 400));
+const average = (xs: number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length;
 
 type Tally = Map<string, PlayerStat>;
 
-// Elo de una partida grupal, con los puntajes de antes de la partida:
-// - Cada jugador con puesto suma como si le hubiera ganado al mejor puntaje de los que quedaron debajo
-//   (los puestos siguientes y los que no tienen puesto).
+// Cambio de Elo de cada jugador en una partida grupal, con los puntajes de antes de la partida:
+// - Cada jugador con puesto suma como en un duelo ganado contra el promedio de los que quedaron debajo
+//   (los puestos siguientes y los que no tienen puesto). El 1.º se mide contra el promedio de todos los demás.
 // - Los que no tienen puesto restan como si hubieran perdido contra el último puesto registrado.
 // - Si todos tienen puesto, el último resta como si hubiera perdido contra el puesto anterior.
-function applyElo(stats: Tally, m: Match) {
-  const playing = m.playerIds.filter((id) => stats.has(id));
-  const placed = m.places.filter((id) => playing.includes(id));
-  if (!placed.length) return; // sin puestos no hay resultado
+export function eloChanges(
+  rating: (id: string) => number,
+  k: (id: string) => number,
+  playing: string[],
+  places: string[]
+): Map<string, number> {
+  const changes = new Map<string, number>();
+  const placed = places.filter((id) => playing.includes(id));
+  if (!placed.length) return changes; // sin puestos no hay resultado
   const unplaced = playing.filter((id) => !placed.includes(id));
-  const before = new Map(playing.map((id) => [id, stats.get(id)!.elo]));
-  const rating = (id: string) => before.get(id)!;
-  const k = (id: string) => (stats.get(id)!.played < ELO.newGames ? ELO.kNew : ELO.k);
-
   placed.forEach((id, i) => {
     const below = [...placed.slice(i + 1), ...unplaced];
-    const s = stats.get(id)!;
-    if (below.length) s.elo += k(id) * (1 - expected(rating(id), Math.max(...below.map(rating))));
-    else if (i > 0) s.elo -= k(id) * expected(rating(id), rating(placed[i - 1]));
+    if (below.length) changes.set(id, k(id) * (1 - expected(rating(id), average(below.map(rating)))));
+    else if (i > 0) changes.set(id, -k(id) * expected(rating(id), rating(placed[i - 1])));
   });
   const last = placed[placed.length - 1];
-  for (const id of unplaced) stats.get(id)!.elo -= k(id) * expected(rating(id), rating(last));
+  for (const id of unplaced) changes.set(id, -k(id) * expected(rating(id), rating(last)));
+  return changes;
+}
+
+function applyElo(stats: Tally, m: Match) {
+  const changes = eloChanges(
+    (id) => stats.get(id)!.elo,
+    (id) => (stats.get(id)!.played < ELO.newGames ? ELO.kNew : ELO.k),
+    m.playerIds.filter((id) => stats.has(id)),
+    m.places
+  );
+  for (const [id, change] of changes) stats.get(id)!.elo += change;
 }
 
 export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[] {
   const map: Tally = new Map(
     db.players.map((p) => [
       p.id,
-      { player: p, played: 0, elo: ELO.start, points: 0, wins: 0, seconds: 0, thirds: 0, losses: 0, winRate: 0 },
+      { player: p, played: 0, elo: ELO.start, points: 0, wins: 0, seconds: 0, thirds: 0, losses: 0, winRate: 0, since: { elo: 0, wins: 0, rate: 0, points: 0 } },
     ])
   );
   // En orden cronológico: el Elo depende de lo que pasó antes
@@ -62,7 +75,10 @@ export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[]
   const chronological = [...matches].sort(
     (a, b) => (order.get(a.sessionId) ?? 0) - (order.get(b.sessionId) ?? 0) || a.createdAt - b.createdAt
   );
-  for (const m of chronological) {
+  const modes = Object.keys(MODES) as Mode[];
+  chronological.forEach((m, n) => {
+    const playing = m.playerIds.flatMap((id) => map.get(id) ?? []);
+    const was = playing.map((s) => modes.map((mode) => SCORE[mode](s).score));
     applyElo(map, m); // antes de contar la partida: el K depende de las jugadas hasta ahora
     for (const id of m.playerIds) {
       const s = map.get(id);
@@ -74,11 +90,16 @@ export function playerStats(db: DB, matches: Match[] = db.matches): PlayerStat[]
       else s.losses++;
       if (place === 1) s.seconds++;
       if (place === 2) s.thirds++;
+      s.winRate = s.wins / s.played;
     }
-  }
-  const list = [...map.values()];
-  for (const s of list) s.winRate = s.played ? s.wins / s.played : 0;
-  return list;
+    // Para el desempate: se anota cuándo cambió el valor de cada jugador
+    playing.forEach((s, i) =>
+      modes.forEach((mode, j) => {
+        if (SCORE[mode](s).score !== was[i][j]) s.since[mode] = n + 1;
+      })
+    );
+  });
+  return [...map.values()];
 }
 
 // Formas de ordenar el ranking
@@ -91,7 +112,7 @@ export const MODES = {
 export type Mode = keyof typeof MODES;
 
 export type Ranked = PlayerStat & {
-  rank: number; // mismo valor = mismo puesto; 0 si es provisional
+  rank: number; // puesto único; los provisionales van después de los clasificados
   score: number; // valor por el que se ordena
   text: string; // valor a mostrar
   unit: string;
@@ -111,21 +132,19 @@ export function ranking(db: DB, mode: Mode, matches: Match[] = db.matches): Rank
   const list: Ranked[] = playerStats(db, matches)
     .filter((s) => s.played > 0)
     .map((s) => ({ ...s, ...SCORE[mode](s), rank: 0, provisional: needsMin && s.played < ELO.minGames }));
-  // Clasificados primero; a igual valor: más victorias, más segundos, más terceros, más partidas y nombre
+  // Clasificados primero; a igual valor va primero quien llegó antes a ese valor
   list.sort(
     (a, b) =>
       Number(a.provisional) - Number(b.provisional) ||
       b.score - a.score ||
+      a.since[mode] - b.since[mode] ||
       b.wins - a.wins ||
       b.seconds - a.seconds ||
       b.thirds - a.thirds ||
       b.played - a.played ||
       a.player.name.localeCompare(b.player.name)
   );
-  list.forEach((s, i) => {
-    if (s.provisional) return;
-    s.rank = i > 0 && list[i - 1].score === s.score ? list[i - 1].rank : i + 1;
-  });
+  list.forEach((s, i) => (s.rank = i + 1));
   return list;
 }
 
