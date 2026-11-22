@@ -38,7 +38,7 @@ En el home, la sección **Studios** muestra un gráfico de barras con las partid
 
 Cada jugador puede tener además una **foto grande con fondo transparente** (PNG o WebP), que se sube en **Configuración → Jugadores** y se sirve en `/api/photo/<id>full`. Todavía no se muestra en el home.
 
-Los botones de video y de configuración solo se ven con sesión de administrador (arriba a la derecha). El de **video** abre un modal para crear un MP4 con solo el cuadro del ranking (completo o un rango de posiciones): los tres primeros puestos aparecen de uno en uno con el puntaje subiendo y el resto casi seguidos, con sonido opcional, pensado para ponerlo encima de otro video; se genera en el navegador (Chrome, Edge o Safari actualizados). Desde el mismo modal se puede animar el ranking en la página.
+Los botones de video y de configuración solo se ven con sesión de administrador (arriba a la derecha). El de **video** abre un modal para crear un MP4 con solo el cuadro del ranking (completo o un rango de posiciones): bloques blancos con texto negro que aparecen del último puesto al primero con el puntaje subiendo, una entrada especial para el 1.º y sonido opcional; dura menos de 5 segundos, pensado para ponerlo encima de otro video; se genera en el navegador (Chrome, Edge o Safari actualizados). Desde el mismo modal se puede animar el ranking en la página.
 
 **Video con fondo transparente.** El MP4 no guarda transparencia, así que con la casilla "Fondo transparente" la web exporta un archivo `-alfa.mp4` (color arriba, máscara abajo) y hay que convertirlo en la Mac:
 

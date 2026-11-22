@@ -5,8 +5,7 @@ import { Mode, Ranked } from "@/lib/stats";
 import { STUDIOS } from "@/lib/types";
 
 // Video del ranking: solo el cuadro, para ponerlo encima de otro video en un editor.
-// Los puestos aparecen del primero al último y el puntaje de cada uno sube contando:
-// los tres primeros de uno en uno y el resto casi seguidos.
+// Los puestos aparecen del último al primero y el puntaje de cada uno sube contando.
 // Se dibuja en un canvas cuadro por cuadro y se codifica como MP4 (H.264 + AAC) en el navegador.
 
 const FPS = 30;
@@ -14,14 +13,15 @@ const W = 1080;
 const PAD = 28;
 const ROW = 128;
 const START = 0.2; // cuadro vacío antes del primer puesto
-const APPEAR = 0.2; // entrada de cada fila
-const END = 1.5; // ranking completo quieto
+const END = 1.4; // ranking completo quieto
 const RATE = 48000; // audio
 
-const CARD = "#0d122c";
-const TEXT = "#eef0f6";
-const MUTED = "#98a0b8";
-const MEDALS = ["#f5b942", "#c3c9d6", "#d08a5b"];
+const CARD = "#0d122c"; // fondo cuando no es transparente
+const BLOCK = "#ffffff";
+const INK = "#111111";
+const GRAY = "#5f6368";
+const GOLD = "#f5b942";
+const MEDALS = [GOLD, "#c3c9d6", "#d08a5b"];
 
 type Row = {
   name: string;
@@ -35,27 +35,30 @@ type Row = {
   change: number | null; // puestos que subió (+) o bajó (−); null = nuevo
 };
 
-// Tiempos de la animación: los tres primeros puestos van de uno en uno, con calma;
-// del cuarto en adelante aparecen casi seguidos.
+// Tiempos de la animación. Se va de abajo hacia arriba: primero los últimos puestos, casi seguidos;
+// después el 3.º y el 2.º con calma, y al final el 1.º con una entrada especial.
 // El video completo dura menos de 5 segundos, sean cuantos sean los puestos.
-const SLOW = { step: 0.6, count: 0.38 }; // segundos por puesto y lo que tarda en contar
-const FAST = { step: 0.12, count: 0.25, budget: 1.0 }; // budget: lo máximo que ocupan todos los rápidos
-type Timing = { starts: number[]; counts: number[]; total: number };
+const FAST = { step: 0.12, appear: 0.18, count: 0.22, budget: 1.0 }; // budget: lo máximo que ocupan todos los rápidos
+const SLOW = { step: 0.55, appear: 0.2, count: 0.3 };
+const FIRST = { appear: 0.4, count: 0.5 };
+type Timing = { starts: number[]; appears: number[]; counts: number[]; total: number };
 function timing(rows: Row[]): Timing {
   const starts: number[] = [];
+  const appears: number[] = [];
   const counts: number[] = [];
   const quick = rows.filter((r) => r.rank > 3).length;
   const fastStep = Math.min(FAST.step, FAST.budget / Math.max(1, quick));
   let at = START;
-  for (const r of rows) {
-    const slow = r.rank <= 3;
-    starts.push(at);
-    counts.push(slow ? SLOW.count : FAST.count);
-    at += slow ? SLOW.step : fastStep;
+  let done = START;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const pace = rows[i].rank === 1 ? FIRST : rows[i].rank <= 3 ? SLOW : FAST;
+    starts[i] = at;
+    appears[i] = pace.appear;
+    counts[i] = pace.count;
+    done = Math.max(done, at + pace.appear + pace.count);
+    at += rows[i].rank > 3 ? fastStep : SLOW.step;
   }
-  // El último termina de contar antes de la pausa final
-  const done = Math.max(at, ...rows.map((_, i) => starts[i] + APPEAR + counts[i]));
-  return { starts, counts, total: done + END };
+  return { starts, appears, counts, total: done + END };
 }
 
 export type ExportInput = {
@@ -70,6 +73,8 @@ export type ExportInput = {
 
 const clamp = (t: number) => Math.min(1, Math.max(0, t));
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
+// Llega pasándose un poco y vuelve (para la entrada del primero)
+const easeBack = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -92,7 +97,7 @@ async function buildRows(input: ExportInput): Promise<Row[]> {
       return {
         name: s.player.name,
         studio: studio?.label ?? "",
-        studioColor: studio?.color ?? MUTED,
+        studioColor: studio?.color ?? GRAY,
         mvp: input.mvp.has(s.player.id),
         img: (await loadImage(src)) ?? (await loadImage("/default-avatar.svg")),
         rank: s.rank,
@@ -109,10 +114,11 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
   c.roundRect(x, y, w, h, r);
 }
 
-// clear: sin el cuadro de fondo; cada fila lleva su propio panel oscuro y lo demás queda transparente
+// Cada puesto es un bloque blanco con texto negro; el primero va en dorado.
+// clear: sin fondo detrás de los bloques, para que quede transparente.
 function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string, percent: boolean, clear: boolean) {
   const H = c.canvas.height;
-  const { starts, counts, total } = timing(rows);
+  const { starts, appears, counts, total } = timing(rows);
   const ended = clamp((t - (total - END)) / 0.3);
   const set = (weight: number, size: number) => (c.font = `${weight} ${size}px ${font}`);
 
@@ -120,72 +126,75 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
   else {
     c.fillStyle = CARD;
     c.fillRect(0, 0, W, H);
-    // Líneas entre puestos
-    c.fillStyle = "rgba(120, 135, 200, 0.18)";
-    for (let i = 1; i < rows.length; i++) c.fillRect(PAD + 24, PAD + i * ROW - 1, W - 2 * PAD - 48, 2);
   }
 
+  const after: (() => void)[] = []; // se dibuja encima de todos los bloques
   rows.forEach((r, i) => {
     const since = t - starts[i]; // segundos desde que le toca aparecer
-    const count = counts[i];
     if (since <= 0) return;
-    const shown = easeOut(clamp(since / APPEAR));
-    const counted = clamp((since - APPEAR) / count);
+    const first = r.rank === 1;
+    const enter = clamp(since / appears[i]);
+    const counted = clamp((since - appears[i]) / counts[i]);
+    const landed = since - appears[i] - counts[i]; // segundos desde que terminó de contar
     const y = PAD + i * ROW;
     const mid = y + ROW / 2;
+    const x0 = PAD;
+    const bw = W - 2 * PAD;
     const medal = MEDALS[r.rank - 1];
-    c.save();
-    c.globalAlpha = shown;
-    c.translate((1 - shown) * 90, 0); // entra desde la derecha
 
-    if (clear && r.rank !== 1) {
-      roundRect(c, PAD, y + 4, W - 2 * PAD, ROW - 8, 22);
-      c.fillStyle = "rgba(13, 18, 44, 0.88)";
-      c.fill();
-    }
-    // Primer puesto en dorado
-    if (r.rank === 1) {
-      roundRect(c, PAD, y + 4, W - 2 * PAD, ROW - 8, 22);
-      const g = c.createLinearGradient(PAD, 0, W - PAD, 0);
-      g.addColorStop(0, "#4a3a16");
-      g.addColorStop(0.45, "#2a2540");
-      g.addColorStop(1, "#6b5420");
-      c.fillStyle = g;
-      c.fill();
-      c.strokeStyle = "rgba(245, 185, 66, 0.75)";
-      c.lineWidth = 2;
-      c.stroke();
+    c.save();
+    c.globalAlpha = clamp(enter * 2.5);
+    if (first) {
+      // El primero cae desde grande y rebota
+      const scale = 1.35 - 0.35 * easeBack(enter);
+      c.translate(W / 2, mid);
+      c.scale(scale, scale);
+      c.translate(-W / 2, -mid);
+    } else c.translate((1 - easeOut(enter)) * 90, 0); // los demás entran desde la derecha
+
+    // Bloque
+    roundRect(c, x0, y + 5, bw, ROW - 10, 22);
+    c.fillStyle = first ? GOLD : BLOCK;
+    c.fill();
+    if (first) {
+      // Brillo que cruza el bloque al llegar
+      const sweep = clamp((since - appears[i]) / 0.6);
+      if (sweep > 0 && sweep < 1) {
+        c.save();
+        c.clip();
+        const sx = x0 - 260 + (bw + 520) * sweep;
+        const g = c.createLinearGradient(sx - 130, 0, sx + 130, 0);
+        g.addColorStop(0, "rgba(255,255,255,0)");
+        g.addColorStop(0.5, "rgba(255,255,255,0.85)");
+        g.addColorStop(1, "rgba(255,255,255,0)");
+        c.fillStyle = g;
+        c.transform(1, 0, -0.4, 1, mid * 0.4, 0);
+        c.fillRect(sx - 130, y, 260, ROW);
+        c.restore();
+      }
     }
 
     // Puesto
-    const px = PAD + 62;
+    const px = x0 + 62;
     c.textAlign = "center";
     c.textBaseline = "middle";
-    set(800, 38);
-    if (medal) {
+    if (medal && !first) {
       c.beginPath();
-      c.arc(px, mid, 34, 0, Math.PI * 2);
-      c.strokeStyle = medal;
-      c.lineWidth = 5;
-      c.setLineDash([14, 7]);
-      c.stroke();
-      c.setLineDash([]);
-      c.fillStyle = "#fff";
-    } else {
-      roundRect(c, px - 32, mid - 32, 64, 64, 16);
-      c.fillStyle = "rgba(120, 135, 200, 0.14)";
+      c.arc(px, mid, 32, 0, Math.PI * 2);
+      c.fillStyle = medal;
       c.fill();
-      c.fillStyle = MUTED;
     }
+    set(800, first ? 52 : 38);
+    c.fillStyle = INK;
     c.fillText(String(r.rank), px, mid + 2);
 
     // Foto
-    const ax = PAD + 172;
+    const ax = x0 + 172;
     const ar = 46;
     c.save();
     c.beginPath();
     c.arc(ax, mid, ar, 0, Math.PI * 2);
-    c.fillStyle = "#1b2145";
+    c.fillStyle = "#e6e8ee";
     c.fill();
     c.clip();
     if (r.img) {
@@ -196,26 +205,26 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
     }
     c.restore();
     c.beginPath();
-    c.arc(ax, mid, ar + 2, 0, Math.PI * 2);
-    c.strokeStyle = medal ?? "rgba(120, 135, 200, 0.4)";
-    c.lineWidth = 4;
+    c.arc(ax, mid, ar + 1.5, 0, Math.PI * 2);
+    c.strokeStyle = first ? INK : "#d5d8e0";
+    c.lineWidth = 3;
     c.stroke();
 
     // Nombre, MVP y, debajo, el studio
-    const tx = PAD + 244;
+    const tx = x0 + 244;
     const nameY = r.studio ? mid - 18 : mid + 2;
     c.textAlign = "left";
-    set(700, 40);
-    c.fillStyle = TEXT;
+    set(first ? 800 : 700, 40);
+    c.fillStyle = INK;
     c.fillText(r.name, tx, nameY);
     if (r.mvp) {
       const nx = tx + c.measureText(r.name).width + 14;
       set(800, 20);
       const mw = c.measureText("MVP").width + 22;
       roundRect(c, nx, nameY - 15, mw, 30, 8);
-      c.fillStyle = MEDALS[0];
+      c.fillStyle = INK;
       c.fill();
-      c.fillStyle = "#1a1300";
+      c.fillStyle = "#fff";
       c.fillText("MVP", nx + 11, nameY + 1);
     }
     if (r.studio) {
@@ -223,29 +232,35 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
       c.arc(tx + 9, mid + 28, 9, 0, Math.PI * 2);
       c.fillStyle = r.studioColor;
       c.fill();
-      set(400, 26);
-      c.fillStyle = MUTED;
+      if (first) {
+        c.strokeStyle = INK;
+        c.lineWidth = 2;
+        c.stroke();
+      }
+      set(500, 26);
+      c.fillStyle = first ? "#3a2c00" : GRAY;
       c.fillText(r.studio, tx + 28, mid + 29);
     }
 
     // Puntaje: sube contando y da un pequeño salto al llegar
     const score = Math.round(r.score * easeOut(counted));
-    const right = W - PAD - 30;
+    const right = x0 + bw - 30;
     c.textAlign = "right";
-    set(400, 26);
-    c.fillStyle = MUTED;
+    set(500, 26);
+    c.fillStyle = first ? "#3a2c00" : GRAY;
     c.fillText(r.unit, right, mid + 8);
     const unitW = c.measureText(r.unit).width;
-    set(800, 54);
+    set(800, first ? 60 : 54);
     const finalW = c.measureText(percent ? `${r.score}%` : String(r.score)).width;
-    const landed = since - APPEAR - count; // segundos desde que terminó de contar
-    const pop = landed > 0 && landed < 0.25 ? 1 + 0.18 * Math.sin((landed / 0.25) * Math.PI) : 1;
+    const jump = first ? 0.3 : 0.18;
+    const pop = landed > 0 && landed < 0.25 ? 1 + jump * Math.sin((landed / 0.25) * Math.PI) : 1;
     const sx = right - unitW - 12;
     c.save();
     c.translate(sx - finalW / 2, mid + 2);
     c.scale(pop, pop);
-    c.fillStyle = counted < 1 ? MEDALS[0] : TEXT;
-    c.fillText(percent ? `${score}%` : String(score), finalW / 2, 0);
+    c.textAlign = "center";
+    c.fillStyle = INK;
+    c.fillText(percent ? `${score}%` : String(score), 0, 0);
     c.restore();
 
     // Cambio de puesto, cuando ya están todos
@@ -253,22 +268,57 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
     if (label && ended > 0) {
       const bx = sx - finalW - 26;
       set(700, 24);
-      const bw = c.measureText(label).width + 28;
+      const lw = c.measureText(label).width + 28;
       c.globalAlpha = ended;
-      roundRect(c, bx - bw, mid - 20, bw, 40, 20);
-      c.fillStyle = "#1b2145";
+      roundRect(c, bx - lw, mid - 20, lw, 40, 20);
+      c.fillStyle = first ? "rgba(0, 0, 0, 0.14)" : "#eef0f3";
       c.fill();
-      c.fillStyle = r.change === null ? MEDALS[0] : r.change > 0 ? "#5fd38d" : "#ef6b6b";
+      c.fillStyle = r.change === null ? INK : r.change > 0 ? "#12853f" : "#c62828";
       c.textAlign = "center";
-      c.fillText(label, bx - bw / 2, mid + 1);
+      c.fillText(label, bx - lw / 2, mid + 1);
     }
     c.restore();
+
+    // Destellos alrededor del primero cuando termina de contar
+    if (first && landed > 0 && landed < 0.9) after.push(() => {
+      const k = landed / 0.9;
+      c.save();
+      c.globalAlpha = 1 - k * k;
+      c.fillStyle = "#fff";
+      c.strokeStyle = GOLD;
+      c.lineWidth = 3;
+      for (let n = 0; n < 14; n++) {
+        const side = n % 2 ? 1 : -1; // mitad hacia arriba, mitad hacia abajo
+        const sx0 = x0 + ((n + 0.5) / 14) * bw;
+        const reach = (30 + ((n * 37) % 60)) * easeOut(k);
+        // unas salen por debajo del bloque y otras flotan sobre él
+        const cy = side > 0 ? mid + ROW / 2 - 6 + reach : mid - reach * 0.5;
+        const size = (18 + ((n * 13) % 14)) * (1 - k * 0.4);
+        star(c, sx0 + side * reach * 0.25, Math.max(size, Math.min(H - size, cy)), size);
+      }
+      c.restore();
+    });
   });
+  after.forEach((f) => f());
 }
 
-// Sonidos propios, sintetizados: entrada de la fila, conteo del puntaje, campanita al llegar y acorde final
+// Estrella de cuatro puntas
+function star(c: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  c.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const d = i % 2 ? r * 0.38 : r;
+    c.lineTo(x + Math.sin(a) * d, y - Math.cos(a) * d);
+  }
+  c.closePath();
+  c.fill();
+  c.stroke();
+}
+
+// Sonidos propios, sintetizados: entrada de cada bloque, conteo del puntaje, campanita al llegar
+// y, para el primero, una subida de tono y un acorde de celebración
 async function renderAudio(rows: Row[]): Promise<AudioBuffer> {
-  const { starts, counts, total } = timing(rows);
+  const { starts, appears, counts, total } = timing(rows);
   const ctx = new OfflineAudioContext(2, Math.ceil(total * RATE), RATE);
   const master = ctx.createGain();
   master.gain.value = 0.5;
@@ -289,22 +339,25 @@ async function renderAudio(rows: Row[]): Promise<AudioBuffer> {
   rows.forEach((r, i) => {
     const at = starts[i];
     const count = counts[i];
+    const first = r.rank === 1;
     const soft = r.rank <= 3 ? 1 : 0.6; // los que pasan rápido suenan más suave
-    tone("sine", at, 0.16, 260, 620, 0.35 * soft); // entra la fila
-    const from = at + APPEAR;
+    if (first) tone("sawtooth", at, appears[i], 180, 900, 0.16); // subida antes de caer
+    else tone("sine", at, 0.16, 260, 620, 0.35 * soft); // entra el bloque
+    const from = at + appears[i];
     const ticks = Math.max(4, Math.round(count / 0.05));
     for (let k = 0; k < ticks; k++)
       tone("square", from + (k / ticks) * count, 0.035, 700 + (700 * k) / ticks, 700 + (700 * k) / ticks, 0.12);
     const land = from + count;
-    const high = r.rank === 1 ? 1.5 : 1; // el primero suena más agudo
-    tone("sine", land, 0.45, 1318.5 * high, 1318.5 * high, 0.3 * soft);
-    tone("sine", land + 0.02, 0.5, 1975.5 * high, 1975.5 * high, 0.18 * soft);
-  });
-  // Acorde final arpegiado
-  const fin = total - END + 0.05;
-  [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => {
-    tone("triangle", fin + k * 0.08, 1.1, f, f, 0.3);
-    tone("sine", fin + k * 0.08, 1.1, f * 2, f * 2, 0.08);
+    if (first) {
+      // Acorde de celebración arpegiado
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, k) => {
+        tone("triangle", land + k * 0.07, 1.2, f, f, 0.3);
+        tone("sine", land + k * 0.07, 1.2, f * 2, f * 2, 0.09);
+      });
+    } else {
+      tone("sine", land, 0.45, 1318.5, 1318.5, 0.3 * soft);
+      tone("sine", land + 0.02, 0.5, 1975.5, 1975.5, 0.18 * soft);
+    }
   });
   return ctx.startRendering();
 }
@@ -495,8 +548,8 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
     <dialog ref={dialog} className="modal" onClose={onClose} onCancel={(e) => busy && e.preventDefault()}>
       <h2>Video del ranking</h2>
       <p className="muted">
-        Crea un MP4 solo con el cuadro del ranking, para ponerlo encima de otro video. Los tres primeros
-        puestos aparecen de uno en uno con el puntaje subiendo, y el resto casi seguidos.
+        Crea un MP4 solo con los bloques del ranking, para ponerlo encima de otro video. Aparecen de abajo hacia
+        arriba: primero los últimos puestos, casi seguidos, y al final el 3.º, el 2.º y el 1.º.
       </p>
       <label className="choice">
         <input type="radio" name="scope" checked={scope === "all"} disabled={busy} onChange={() => setScope("all")} />
