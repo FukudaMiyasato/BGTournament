@@ -15,7 +15,7 @@ export const fullPhotoId = (playerId: string) => `${playerId}full`;
 export type Game = { id: string; name: string; photoV?: number }; // sin photoV = sin foto
 // Una sesión es una jornada de juego: tiene fecha y agrupa partidas.
 // Sus puntos cuentan en el ranking público solo cuando está subida (published).
-export type Session = { id: string; date: string; published: boolean; createdAt: number }; // date YYYY-MM-DD
+export type Session = { id: string; date: string; published: boolean; createdAt: number; title?: string }; // date YYYY-MM-DD; title opcional
 export type Match = {
   id: string;
   sessionId: string;

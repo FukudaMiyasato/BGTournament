@@ -184,6 +184,7 @@ function Chips({
 
 function Sessions({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => void }) {
   const [date, setDate] = useState(today());
+  const [title, setTitle] = useState("");
   const sessions = sortedSessions(db);
 
   return (
@@ -192,7 +193,7 @@ function Sessions({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => v
         className="card form"
         onSubmit={async (e) => {
           e.preventDefault();
-          await act({ action: "addSession", date });
+          if (await act({ action: "addSession", date, title })) setTitle("");
         }}
       >
         <h2>Nueva sesión</h2>
@@ -206,6 +207,10 @@ function Sessions({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => v
             <label>
               Fecha de la sesión
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </label>
+            <label className="grow">
+              Título (opcional)
+              <input value={title} maxLength={60} placeholder="Ej. Noche de estrategia" onChange={(e) => setTitle(e.target.value)} />
             </label>
             <button className="btn">＋ Agregar sesión</button>
           </div>
@@ -225,10 +230,30 @@ function Sessions({ db, act, goPlayers }: { db: DB; act: Act; goPlayers: () => v
 // Una partida mientras se edita en su fila
 type Row = { id: string; gameName: string; playerIds: string[]; places: string[] };
 
+const CLOSED_KEY = "sesiones-minimizadas";
+function readClosed(): string[] {
+  try {
+    const ids = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "[]");
+    return Array.isArray(ids) ? ids : [];
+  } catch {
+    return [];
+  }
+}
+
 function SessionCard({ session, number, db, act }: { session: Session; number: number; db: DB; act: Act }) {
   // Filas con cambios aún no confirmados por el servidor (o nuevas sin completar): se muestran al instante
   const [local, setLocal] = useState<Record<string, Row>>({});
   const version = useRef<Record<string, number>>({});
+  // Minimizada: solo se ve la cabecera. Se recuerda en este navegador.
+  const [closed, setClosed] = useState(() => readClosed().includes(session.id));
+  const toggle = () => {
+    const next = !closed;
+    setClosed(next);
+    const ids = readClosed().filter((id) => id !== session.id);
+    try {
+      localStorage.setItem(CLOSED_KEY, JSON.stringify(next ? [...ids, session.id] : ids));
+    } catch {}
+  };
   const gameById = new Map(db.games.map((g) => [g.id, g]));
   const saved: Row[] = db.matches
     .filter((m) => m.sessionId === session.id)
@@ -263,9 +288,33 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
   };
 
   return (
-    <section className={`card session ${session.published ? "" : "draft"}`}>
+    <section className={`card session ${session.published ? "" : "draft"} ${closed ? "closed" : ""}`}>
       <header className="session-head">
+        <button
+          className="fold"
+          onClick={toggle}
+          aria-expanded={!closed}
+          aria-label={closed ? `Mostrar la sesión ${number}` : `Minimizar la sesión ${number}`}
+          title={closed ? "Mostrar" : "Minimizar"}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <strong>Sesión {number}</strong>
+        <input
+          key={session.title ?? ""}
+          className="inline session-title"
+          aria-label="Título de la sesión"
+          placeholder="Sin título"
+          maxLength={60}
+          defaultValue={session.title ?? ""}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          onBlur={(e) =>
+            e.target.value.trim() !== (session.title ?? "") &&
+            act({ action: "updateSession", id: session.id, title: e.target.value })
+          }
+        />
         <input
           type="date"
           className="inline"
@@ -276,6 +325,7 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
         <span className={`badge ${session.published ? "ok" : ""}`}>
           {session.published ? "Subida" : "En preparación"}
         </span>
+        {closed && <span className="muted small-text">{saved.length} {saved.length === 1 ? "partida" : "partidas"}</span>}
         <span className="grow" />
         {session.published ? (
           <button
@@ -310,7 +360,7 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
         </button>
       </header>
 
-      {rows.map((row) => (
+      {!closed && rows.map((row) => (
         <MatchRow
           key={row.id}
           row={row}
@@ -322,7 +372,7 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
         />
       ))}
 
-      <div className="session-foot">
+      {!closed && <div className="session-foot">
         <button className="btn ghost small" onClick={addRow}>＋ Agregar partida</button>
         {rows.length > 0 && (
           <span className="muted">
@@ -330,7 +380,7 @@ function SessionCard({ session, number, db, act }: { session: Session; number: n
             de nuevo para quitar un puesto.
           </span>
         )}
-      </div>
+      </div>}
     </section>
   );
 }

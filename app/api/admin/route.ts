@@ -117,13 +117,19 @@ async function apply(db: DB, b: Body) {
       return;
     }
     case "addSession": {
-      db.sessions.push({ id: newId(), date: validDate(b.date), published: false, createdAt: Date.now() });
+      const title = clean(b.title);
+      db.sessions.push({ id: newId(), date: validDate(b.date), published: false, createdAt: Date.now(), ...(title && { title }) });
       return;
     }
     case "updateSession": {
       const ses = db.sessions.find((x) => x.id === b.id);
       if (!ses) throw new Fail("Sesión no encontrada");
       if (b.date !== undefined) ses.date = validDate(b.date);
+      if (b.title !== undefined) {
+        const title = clean(b.title);
+        if (title) ses.title = title;
+        else delete ses.title;
+      }
       if (b.published !== undefined) {
         if (b.published && !db.matches.some((m) => m.sessionId === ses.id))
           throw new Fail("La sesión aún no tiene partidas");
@@ -240,7 +246,8 @@ async function importBackup(db: DB, raw: Partial<Backup>) {
   for (const ses of data.sessions) {
     if (db.sessions.some((x) => x.id === ses.id)) continue;
     if (typeof ses.id !== "string" || typeof ses.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(ses.date)) continue;
-    db.sessions.push({ id: ses.id, date: ses.date, published: !!ses.published, createdAt: Number(ses.createdAt) || 0 });
+    const title = clean(ses.title);
+    db.sessions.push({ id: ses.id, date: ses.date, published: !!ses.published, createdAt: Number(ses.createdAt) || 0, ...(title && { title }) });
   }
   for (const m of data.matches) {
     const gameId = gameMap.get(m?.gameId);

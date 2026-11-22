@@ -255,6 +255,13 @@ input.inline:hover, input.inline:focus { border-color: var(--border); background
 .session-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 10px; }
 .session-head strong { font-size: 1.1rem; }
 .session-head input[type="date"] { width: auto; color: var(--muted); }
+.session-head .session-title { flex: 1 1 140px; min-width: 100px; max-width: 320px; font-weight: 600; }
+.session-head .small-text { font-size: 0.85rem; }
+.session.closed .session-head { padding-bottom: 0; }
+.fold { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; }
+.fold:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.fold svg { transition: transform 0.15s; }
+.session.closed .fold svg { transform: rotate(-90deg); }
 .badge { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: #3d3214; color: var(--gold); white-space: nowrap; }
 .badge.ok { background: #173626; color: #5fd38d; }
 .match-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }

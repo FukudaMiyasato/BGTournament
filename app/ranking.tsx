@@ -146,7 +146,7 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
           ) : view === "prev" ? (
             number > 1 ? `Antes de la sesión ${number}…` : "Antes de la primera sesión…"
           ) : (
-            <>Última sesión: <strong>{last && formatDate(last.date)}</strong></>
+            <>Última sesión: <strong>{last?.title ? `${last.title} · ` : ""}{last && formatDate(last.date)}</strong></>
           )}
         </span>
         <label className="pill mode">

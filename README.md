@@ -25,7 +25,7 @@ Además, cada partida reparte puntos según el puesto: por defecto **3** al 1.º
 
 Las partidas se agrupan en **sesiones** (una jornada de juego con su fecha). En **Configuración → Sesiones**:
 
-1. **Agregar sesión** y poner la fecha.
+1. **Agregar sesión** y poner la fecha y, si se quiere, un título (se puede cambiar después en la misma sesión y aparece en el home junto a la fecha de la última sesión). La flecha de cada sesión la minimiza para dejar solo su cabecera; se recuerda en ese navegador.
 2. **Agregar partida**: cada partida es una fila con el juego y las caritas de los integrantes. Se guarda sola al tener juego e integrantes.
 3. Tocar las caritas en orden para marcar los puestos: la primera es el 1.º, la siguiente el 2.º, y así. Tocar de nuevo una carita le quita el puesto y los demás suben.
 4. **Subir sesión**: hasta entonces sus partidas no cuentan en el ranking público ni se ven en el home.
