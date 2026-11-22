@@ -38,7 +38,15 @@ En el home, la sección **Studios** muestra un gráfico de barras con las partid
 
 Cada jugador puede tener además una **foto grande con fondo transparente** (PNG o WebP), que se sube en **Configuración → Jugadores** y se sirve en `/api/photo/<id>full`. Todavía no se muestra en el home.
 
-Los botones de video y de configuración solo se ven con sesión de administrador (arriba a la derecha). El de **video** abre un modal para crear un MP4 con solo el cuadro del ranking (completo o un rango de posiciones): los tres primeros puestos aparecen de uno en uno con el puntaje subiendo y el resto casi seguidos, con sonido opcional, pensado para ponerlo encima de otro video; se genera en el navegador (Chrome, Edge o Safari actualizados). Desde el mismo modal se puede animar el ranking en la página. Para iniciar sesión se entra directamente a `/configuracion`.
+Los botones de video y de configuración solo se ven con sesión de administrador (arriba a la derecha). El de **video** abre un modal para crear un MP4 con solo el cuadro del ranking (completo o un rango de posiciones): los tres primeros puestos aparecen de uno en uno con el puntaje subiendo y el resto casi seguidos, con sonido opcional, pensado para ponerlo encima de otro video; se genera en el navegador (Chrome, Edge o Safari actualizados). Desde el mismo modal se puede animar el ranking en la página.
+
+**Video con fondo transparente.** El MP4 no guarda transparencia, así que con la casilla "Fondo transparente" la web exporta un archivo `-alfa.mp4` (color arriba, máscara abajo) y hay que convertirlo en la Mac:
+
+```bash
+npm run transparente -- ~/Downloads/ranking-sesion-2-alfa.mp4
+```
+
+Eso crea al lado un `-transparente.mov` (HEVC con canal alfa), que el iPhone y Edits de Instagram aceptan como capa encima de otro video. Necesita macOS y `ffmpeg` (`brew install ffmpeg`). Para iniciar sesión se entra directamente a `/configuracion`.
 
 Los jugadores sin foto muestran una imagen por defecto, que se puede cambiar en **Configuración → Jugadores**. En **Configuración → Ajustes** se puede descargar una copia de todo (con fotos) e importarla en otra instalación, por ejemplo para pasar datos de local a Vercel.
 

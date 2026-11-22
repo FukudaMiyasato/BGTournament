@@ -106,17 +106,21 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
   c.roundRect(x, y, w, h, r);
 }
 
-function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string, percent: boolean) {
+// clear: sin el cuadro de fondo; cada fila lleva su propio panel oscuro y lo demás queda transparente
+function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string, percent: boolean, clear: boolean) {
   const H = c.canvas.height;
   const { starts, counts, total } = timing(rows);
   const ended = clamp((t - (total - END) - 0.2) / 0.4);
   const set = (weight: number, size: number) => (c.font = `${weight} ${size}px ${font}`);
 
-  c.fillStyle = CARD;
-  c.fillRect(0, 0, W, H);
-  // Líneas entre puestos
-  c.fillStyle = "rgba(120, 135, 200, 0.18)";
-  for (let i = 1; i < rows.length; i++) c.fillRect(PAD + 24, PAD + i * ROW - 1, W - 2 * PAD - 48, 2);
+  if (clear) c.clearRect(0, 0, W, H);
+  else {
+    c.fillStyle = CARD;
+    c.fillRect(0, 0, W, H);
+    // Líneas entre puestos
+    c.fillStyle = "rgba(120, 135, 200, 0.18)";
+    for (let i = 1; i < rows.length; i++) c.fillRect(PAD + 24, PAD + i * ROW - 1, W - 2 * PAD - 48, 2);
+  }
 
   rows.forEach((r, i) => {
     const since = t - starts[i]; // segundos desde que le toca aparecer
@@ -131,6 +135,11 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
     c.globalAlpha = shown;
     c.translate((1 - shown) * 90, 0); // entra desde la derecha
 
+    if (clear && r.rank !== 1) {
+      roundRect(c, PAD, y + 4, W - 2 * PAD, ROW - 8, 22);
+      c.fillStyle = "rgba(13, 18, 44, 0.88)";
+      c.fill();
+    }
     // Primer puesto en dorado
     if (r.rank === 1) {
       roundRect(c, PAD, y + 4, W - 2 * PAD, ROW - 8, 22);
@@ -302,6 +311,7 @@ const AUDIO = { codec: "mp4a.40.2", sampleRate: RATE, numberOfChannels: 2, bitra
 async function renderVideo(
   input: ExportInput,
   sound: boolean,
+  clear: boolean, // fondo transparente: el video lleva arriba el color y abajo la máscara
   onProgress: (p: number) => void
 ): Promise<{ blob: Blob; silent: boolean }> {
   if (typeof VideoEncoder === "undefined")
@@ -309,10 +319,33 @@ async function renderVideo(
   const rows = await buildRows(input);
   if (!rows.length) throw new Error("No hay jugadores en esas posiciones.");
 
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = PAD * 2 + ROW * rows.length; // siempre par
-  const c = canvas.getContext("2d")!;
+  const scene = document.createElement("canvas");
+  scene.width = W;
+  scene.height = PAD * 2 + ROW * rows.length; // siempre par
+  const c = scene.getContext("2d")!;
+  // El MP4 no guarda transparencia: se exporta el doble de alto, con el color (sobre negro) arriba
+  // y la transparencia como máscara en blanco y negro abajo. scripts/transparente.mjs los une en un MOV.
+  const canvas = clear ? document.createElement("canvas") : scene;
+  const mask = document.createElement("canvas");
+  if (clear) {
+    canvas.width = mask.width = W;
+    mask.height = scene.height;
+    canvas.height = scene.height * 2;
+  }
+  const out = canvas.getContext("2d")!;
+  const m = mask.getContext("2d")!;
+  const compose = () => {
+    if (!clear) return;
+    m.globalCompositeOperation = "copy";
+    m.drawImage(scene, 0, 0);
+    m.globalCompositeOperation = "source-in";
+    m.fillStyle = "#fff";
+    m.fillRect(0, 0, W, mask.height);
+    out.fillStyle = "#000";
+    out.fillRect(0, 0, W, canvas.height);
+    out.drawImage(scene, 0, 0);
+    out.drawImage(mask, 0, scene.height);
+  };
   const font = getComputedStyle(document.body).fontFamily;
   await Promise.all([400, 700, 800].map((w) => document.fonts.load(`${w} 40px ${font}`).catch(() => null)));
 
@@ -321,7 +354,7 @@ async function renderVideo(
   const codecs = big ? ["avc1.640033", "avc1.4d0033"] : ["avc1.640028", "avc1.4d0028", "avc1.42002a"];
   let config: VideoEncoderConfig | null = null;
   for (const codec of codecs) {
-    const candidate = { codec, width: canvas.width, height: canvas.height, bitrate: 8_000_000, framerate: FPS };
+    const candidate = { codec, width: canvas.width, height: canvas.height, bitrate: clear ? 14_000_000 : 8_000_000, framerate: FPS };
     if ((await VideoEncoder.isConfigSupported(candidate)).supported) {
       config = candidate;
       break;
@@ -384,7 +417,8 @@ async function renderVideo(
   const percent = input.mode === "rate";
   for (let i = 0; i < frames; i++) {
     check();
-    draw(c, rows, i / FPS, font, percent);
+    draw(c, rows, i / FPS, font, percent, clear);
+    compose();
     const frame = new VideoFrame(canvas, { timestamp: (i * 1e6) / FPS, duration: 1e6 / FPS });
     encoder.encode(frame, { keyFrame: i % FPS === 0 });
     frame.close();
@@ -413,8 +447,9 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
   const [to, setTo] = useState(Math.min(10, total));
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [video, setVideo] = useState<{ url: string; file: File; silent: boolean } | null>(null);
+  const [video, setVideo] = useState<{ url: string; file: File; silent: boolean; clear: boolean } | null>(null);
   const [sound, setSound] = useState(true);
+  const [clear, setClear] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -430,9 +465,10 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
     setVideo(null);
     setProgress(0);
     try {
-      const { blob, silent } = await renderVideo({ ...data, ...range }, sound, setProgress);
-      const file = new File([blob], fileName, { type: "video/mp4" });
-      setVideo({ url: URL.createObjectURL(blob), file, silent });
+      const { blob, silent } = await renderVideo({ ...data, ...range }, sound, clear, setProgress);
+      const name = clear ? fileName.replace(/\.mp4$/, "-alfa.mp4") : fileName;
+      const file = new File([blob], name, { type: "video/mp4" });
+      setVideo({ url: URL.createObjectURL(blob), file, silent, clear });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo crear el video");
     }
@@ -472,6 +508,10 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
         <input type="checkbox" checked={sound} disabled={busy} onChange={(e) => setSound(e.target.checked)} />
         Con sonido
       </label>
+      <label className="choice">
+        <input type="checkbox" checked={clear} disabled={busy} onChange={(e) => setClear(e.target.checked)} />
+        Fondo transparente (necesita un paso más en la Mac)
+      </label>
 
       {error && <p className="notice error">{error}</p>}
       {video?.silent && (
@@ -482,13 +522,27 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
           <i style={{ width: `${progress * 100}%` }} />
         </div>
       )}
-      {video && <video src={video.url} loop playsInline controls />}
+      {video && (
+        <div className={video.clear ? "preview clear" : "preview"}>
+          <video src={video.url} loop playsInline controls={!video.clear} autoPlay={video.clear} muted={video.clear} />
+        </div>
+      )}
+      {video?.clear && (
+        <div className="notice">
+          <p>
+            Este archivo todavía no es transparente: trae el color y la máscara. Descárgalo y, en la carpeta del
+            proyecto, ejecuta en la Terminal:
+          </p>
+          <code>npm run transparente -- ~/Downloads/{video.file.name}</code>
+          <p>Eso crea al lado un <strong>.mov</strong> con fondo transparente, listo para pasarlo al iPhone.</p>
+        </div>
+      )}
 
       <div className="modal-actions">
         {video && (
-          <a className="btn" href={video.url} download={fileName}>Descargar MP4</a>
+          <a className="btn" href={video.url} download={video.file.name}>Descargar MP4</a>
         )}
-        {canShare && (
+        {canShare && !video!.clear && (
           <button className="btn ghost" onClick={() => navigator.share({ files: [video!.file] }).catch(() => {})}>
             Compartir
           </button>
