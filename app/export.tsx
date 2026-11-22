@@ -5,7 +5,8 @@ import { Mode, Ranked } from "@/lib/stats";
 import { STUDIOS } from "@/lib/types";
 
 // Video del ranking: solo el cuadro, para ponerlo encima de otro video en un editor.
-// Los puestos aparecen de uno en uno, del primero al último, y el puntaje de cada uno sube contando.
+// Los puestos aparecen del primero al último y el puntaje de cada uno sube contando:
+// los tres primeros de uno en uno y el resto casi seguidos.
 // Se dibuja en un canvas cuadro por cuadro y se codifica como MP4 (H.264 + AAC) en el navegador.
 
 const FPS = 30;
@@ -34,11 +35,24 @@ type Row = {
   change: number | null; // puestos que subió (+) o bajó (−); null = nuevo
 };
 
-// Tiempos de la animación según la cantidad de filas
-type Timing = { per: number; count: number; total: number };
-function timing(n: number): Timing {
-  const per = Math.min(1.1, Math.max(0.55, 10 / n)); // segundos por puesto
-  return { per, count: per * 0.55, total: START + n * per + END };
+// Tiempos de la animación: los tres primeros puestos van de uno en uno, con calma;
+// del cuarto en adelante aparecen casi seguidos.
+const SLOW = { step: 1.15, count: 0.6 }; // segundos por puesto y lo que tarda en contar
+const FAST = { step: 0.2, count: 0.3 };
+type Timing = { starts: number[]; counts: number[]; total: number };
+function timing(rows: Row[]): Timing {
+  const starts: number[] = [];
+  const counts: number[] = [];
+  let at = START;
+  for (const r of rows) {
+    const pace = r.rank <= 3 ? SLOW : FAST;
+    starts.push(at);
+    counts.push(pace.count);
+    at += pace.step;
+  }
+  // El último termina de contar antes de la pausa final
+  const done = Math.max(at, ...rows.map((_, i) => starts[i] + APPEAR + counts[i]));
+  return { starts, counts, total: done + END };
 }
 
 export type ExportInput = {
@@ -94,7 +108,7 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
 
 function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string, percent: boolean) {
   const H = c.canvas.height;
-  const { per, count, total } = timing(rows.length);
+  const { starts, counts, total } = timing(rows);
   const ended = clamp((t - (total - END) - 0.2) / 0.4);
   const set = (weight: number, size: number) => (c.font = `${weight} ${size}px ${font}`);
 
@@ -105,7 +119,8 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
   for (let i = 1; i < rows.length; i++) c.fillRect(PAD + 24, PAD + i * ROW - 1, W - 2 * PAD - 48, 2);
 
   rows.forEach((r, i) => {
-    const since = t - (START + i * per); // segundos desde que le toca aparecer
+    const since = t - starts[i]; // segundos desde que le toca aparecer
+    const count = counts[i];
     if (since <= 0) return;
     const shown = easeOut(clamp(since / APPEAR));
     const counted = clamp((since - APPEAR) / count);
@@ -241,7 +256,7 @@ function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string,
 
 // Sonidos propios, sintetizados: entrada de la fila, conteo del puntaje, campanita al llegar y acorde final
 async function renderAudio(rows: Row[]): Promise<AudioBuffer> {
-  const { per, count, total } = timing(rows.length);
+  const { starts, counts, total } = timing(rows);
   const ctx = new OfflineAudioContext(2, Math.ceil(total * RATE), RATE);
   const master = ctx.createGain();
   master.gain.value = 0.5;
@@ -260,19 +275,21 @@ async function renderAudio(rows: Row[]): Promise<AudioBuffer> {
     osc.stop(at + dur + 0.02);
   };
   rows.forEach((r, i) => {
-    const at = START + i * per;
-    tone("sine", at, 0.16, 260, 620, 0.35); // entra la fila
+    const at = starts[i];
+    const count = counts[i];
+    const soft = r.rank <= 3 ? 1 : 0.6; // los que pasan rápido suenan más suave
+    tone("sine", at, 0.16, 260, 620, 0.35 * soft); // entra la fila
     const from = at + APPEAR;
     const ticks = Math.max(4, Math.round(count / 0.05));
     for (let k = 0; k < ticks; k++)
       tone("square", from + (k / ticks) * count, 0.035, 700 + (700 * k) / ticks, 700 + (700 * k) / ticks, 0.12);
     const land = from + count;
     const high = r.rank === 1 ? 1.5 : 1; // el primero suena más agudo
-    tone("sine", land, 0.45, 1318.5 * high, 1318.5 * high, 0.3);
-    tone("sine", land + 0.02, 0.5, 1975.5 * high, 1975.5 * high, 0.18);
+    tone("sine", land, 0.45, 1318.5 * high, 1318.5 * high, 0.3 * soft);
+    tone("sine", land + 0.02, 0.5, 1975.5 * high, 1975.5 * high, 0.18 * soft);
   });
   // Acorde final arpegiado
-  const fin = START + rows.length * per + 0.2;
+  const fin = total - END + 0.2;
   [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => {
     tone("triangle", fin + k * 0.09, 1.4, f, f, 0.3);
     tone("sine", fin + k * 0.09, 1.4, f * 2, f * 2, 0.08);
@@ -363,7 +380,7 @@ async function renderVideo(
     error: (e) => (failed = e),
   });
   encoder.configure(config);
-  const frames = Math.round(timing(rows.length).total * FPS);
+  const frames = Math.round(timing(rows).total * FPS);
   const percent = input.mode === "rate";
   for (let i = 0; i < frames; i++) {
     check();
@@ -439,8 +456,8 @@ export function ExportModal({ fileName, onClose, onAnimate, ...data }: Props) {
     <dialog ref={dialog} className="modal" onClose={onClose} onCancel={(e) => busy && e.preventDefault()}>
       <h2>Video del ranking</h2>
       <p className="muted">
-        Crea un MP4 solo con el cuadro del ranking, para ponerlo encima de otro video. Los puestos aparecen de uno
-        en uno, del primero al último, y el puntaje de cada uno sube contando.
+        Crea un MP4 solo con el cuadro del ranking, para ponerlo encima de otro video. Los tres primeros
+        puestos aparecen de uno en uno con el puntaje subiendo, y el resto casi seguidos.
       </p>
       <label className="choice">
         <input type="radio" name="scope" checked={scope === "all"} disabled={busy} onChange={() => setScope("all")} />
