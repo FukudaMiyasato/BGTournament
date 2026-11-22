@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { Avatar, StudioIcon } from "./ui";
+import { Avatar, StudioPill } from "./ui";
 import { ELO, MODES, Mode, Ranked, formatDate, previousRanking, ranking } from "@/lib/stats";
 import { DB, STUDIOS, StudioId } from "@/lib/types";
 
@@ -17,6 +17,26 @@ function Change({ now, prev }: { now: Ranked; prev: Ranked | undefined }) {
   return <span className="change same">=</span>;
 }
 
+// Número del podio dentro de una corona de laurel
+const LEAVES = [28, 64, 100, 136]; // grados desde abajo, subiendo por cada lado
+function Laurel({ n }: { n: number }) {
+  return (
+    <span className="pos laurel">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        {[1, -1].map((side) =>
+          LEAVES.map((deg) => {
+            const a = (deg * Math.PI) / 180;
+            const x = Math.round((24 - side * 17 * Math.sin(a)) * 10) / 10;
+            const y = Math.round((25 + 17 * Math.cos(a)) * 10) / 10;
+            return <ellipse key={`${side}${deg}`} cx={x} cy={y} rx="2.7" ry="5.6" transform={`rotate(${side * (deg - 66)} ${x} ${y})`} />;
+          })
+        )}
+      </svg>
+      <b>{n}</b>
+    </span>
+  );
+}
+
 export function Ranking({ db }: { db: DB }) {
   const [view, setView] = useState<"now" | "prev">("now");
   const [busy, setBusy] = useState(false);
@@ -27,7 +47,6 @@ export function Ranking({ db }: { db: DB }) {
 
   const now = ranking(db, mode);
   const { last, number, prev } = previousRanking(db, mode);
-  const title = last ? `Sesión ${number} · ${formatDate(last.date)}` : "";
   const prevById = new Map(prev.map((s) => [s.player.id, s]));
   const rows = view === "now" ? now : prev;
   const showChange = view === "now" && prev.length > 0;
@@ -77,9 +96,6 @@ export function Ranking({ db }: { db: DB }) {
   }, [view]);
 
   const shown = all ? rows : rows.slice(0, TOP);
-  const classified = shown.filter((s) => !s.provisional);
-  const podium = classified.length >= 3 ? classified.slice(0, 3) : [];
-  const rest = podium.length ? shown.slice(3) : shown;
   const free = Math.max(0, TOP - shown.length); // espacios aún sin jugador
   const hasProvisional = rows.some((s) => s.provisional);
   const studiosInUse = (Object.keys(STUDIOS) as StudioId[]).filter((id) => rows.some((s) => s.player.studio === id));
@@ -87,71 +103,57 @@ export function Ranking({ db }: { db: DB }) {
   return (
     <div ref={box}>
       <div className="rank-bar">
-        <span className="muted">
-          {now.length === 0
-            ? "Aún no hay sesiones subidas. El ranking aparecerá con la primera."
-            : view === "prev"
-            ? number > 1 ? `Así estaba antes de la sesión ${number}…` : "Antes de la primera sesión…"
-            : showChange
-              ? `${title} · cambios respecto a la sesión anterior`
-              : title}
+        <span className="pill session-pill">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
+          {now.length === 0 ? (
+            <span>Aún no hay sesiones subidas</span>
+          ) : view === "prev" ? (
+            <span>{number > 1 ? `Antes de la sesión ${number}…` : "Antes de la primera sesión…"}</span>
+          ) : (
+            <span><strong>Sesión {number}</strong> · {last && formatDate(last.date)}</span>
+          )}
         </span>
-        <label className="mode">
+        <label className="pill mode">
           <span className="sr-only">Ordenar ranking por</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 4.5-9 4.5-9-4.5L12 3Z" /><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5" /></svg>
           <select value={mode} onChange={(e) => setMode(e.target.value as Mode)} disabled={busy}>
             {(Object.keys(MODES) as Mode[]).map((m) => (
-              <option key={m} value={m}>{MODES[m]}</option>
+              <option key={m} value={m}>Ranking: {MODES[m]}</option>
             ))}
           </select>
         </label>
         {now.length > 0 && (
-          <button className="quiet" onClick={animate} disabled={busy}>▶ Animar</button>
+          <button className="pill animate" onClick={animate} disabled={busy}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5-12-7.5Z" fill="currentColor" /></svg>
+            Animar
+          </button>
         )}
       </div>
 
-      {podium.length > 0 && (
-        <section className="podium">
-          {[podium[1], podium[0], podium[2]].map((s) => (
-            <div
-              key={s.player.id}
-              data-flip={s.player.id}
-              className={`podium-spot place-${rows.indexOf(s) + 1} rank-${s.rank}`}
-            >
-              <div className="podium-photo">
-                <Avatar player={s.player} size={rows.indexOf(s) === 0 ? 132 : 100} badge />
-                <span className="medal">{s.rank}</span>
-              </div>
-              <strong>{s.player.name}</strong>
-              <span className="points">{s.text} {s.unit}</span>
+      <ol className="ranking">
+        {shown.map((s) => (
+          <li key={s.player.id} data-flip={s.player.id} className={s.rank <= 3 ? `podio podio-${s.rank}` : ""}>
+            {s.rank <= 3 ? <Laurel n={s.rank} /> : <span className="pos">{s.rank}</span>}
+            <Avatar player={s.player} size={64} badge />
+            <span className="name">
+              {s.player.name}
+              <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
+            </span>
+            <span className="tags">
+              {s.player.studio && <StudioPill studio={s.player.studio} />}
               {showChange && <Change now={s} prev={prevById.get(s.player.id)} />}
-            </div>
-          ))}
-        </section>
-      )}
-
-      {rest.length + free > 0 && (
-        <ol className="card ranking">
-          {rest.map((s) => (
-            <li key={s.player.id} data-flip={s.player.id}>
-              <span className="pos">{s.rank}</span>
-              <Avatar player={s.player} size={52} badge />
-              <span className="name">
-                {s.player.name}
-                <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
-              </span>
-              {showChange && <Change now={s} prev={prevById.get(s.player.id)} />}
-              <span className="points">{s.text}<small> {s.unit}</small></span>
-            </li>
-          ))}
-          {Array.from({ length: free }, (_, i) => (
-            <li key={`free${i}`} className="free" aria-hidden="true">
-              <span className="pos">{shown.length + i + 1}</span>
-              <span className="free-photo" />
-              <span className="free-name" />
-            </li>
-          ))}
-        </ol>
-      )}
+            </span>
+            <span className="points">{s.text}<small> {s.unit}</small></span>
+          </li>
+        ))}
+        {Array.from({ length: free }, (_, i) => (
+          <li key={`free${i}`} className="free" aria-hidden="true">
+            <span className="pos">{shown.length + i + 1}</span>
+            <span className="free-photo" />
+            <span className="free-name" />
+          </li>
+        ))}
+      </ol>
       {rows.length > TOP && (
         <div className="center">
           <button className="quiet" onClick={() => setAll(!all)} disabled={busy}>
@@ -161,13 +163,12 @@ export function Ranking({ db }: { db: DB }) {
       )}
       {studiosInUse.length > 0 && (
         <div className="legend">
-          {studiosInUse.map((id) => (
-            <span key={id}><StudioIcon studio={id} />{STUDIOS[id].label}</span>
-          ))}
+          {studiosInUse.map((id) => <StudioPill key={id} studio={id} solid />)}
         </div>
       )}
       {hasProvisional && (
         <p className="muted rank-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7.5v.5" /></svg>
           Provisional: con menos de {ELO.minGames} partidas se queda debajo de los clasificados.
         </p>
       )}

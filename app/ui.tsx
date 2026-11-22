@@ -67,6 +67,20 @@ export function StudioIcon({ studio }: { studio: StudioId }) {
   );
 }
 
+// Etiqueta del studio con su ícono y nombre; solid = ícono en círculo de color (leyenda)
+export function StudioPill({ studio, solid = false }: { studio: StudioId; solid?: boolean }) {
+  return (
+    <span className={`studio-pill${solid ? " solid" : ""}`} style={{ "--c": STUDIOS[studio].color } as React.CSSProperties}>
+      <i>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {STUDIO_ICONS[studio]}
+        </svg>
+      </i>
+      {STUDIOS[studio].label}
+    </span>
+  );
+}
+
 // badge: muestra el ícono del studio abajo a la derecha de la foto
 export function Avatar({ player, size = 48, badge = false }: { player: Player; size?: number; badge?: boolean }) {
   const defaultV = useContext(DefaultPhoto);

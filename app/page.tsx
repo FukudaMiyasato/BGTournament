@@ -30,8 +30,25 @@ export default function Home() {
     <DefaultPhoto value={db.defaultPhotoV}>
     <main className="page">
       <header className="top">
-        <h1>🎲 BG Tournament</h1>
-        <Link href="/configuracion" className="btn ghost small">Configuración</Link>
+        <h1 className="brand">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path className="cup" d="M15 7h18v9a9 9 0 0 1-18 0V7Z" />
+            <path className="handle" d="M15 10H9v3a6 6 0 0 0 6 6M33 10h6v3a6 6 0 0 1-6 6" />
+            <path className="cup" d="M22 24h4v7h-4zM16 31h16v5H16z" />
+            <path className="step" d="M4 44 14 37h4l-10 7H4Z" />
+            <path className="cup" d="M13 37h22v4H13z" />
+            <path className="star" d="m24 9.5 1.4 2.9 3.1.4-2.3 2.2.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.2 3.1-.4L24 9.5Z" />
+          </svg>
+          <span><b>BG</b> TOURNAMENT</span>
+        </h1>
+        <Link href="/configuracion" className="pill config-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+            <circle cx="12" cy="12" r="6.5" />
+          </svg>
+          Configuración
+        </Link>
       </header>
 
       {stats.length === 0 ? (
