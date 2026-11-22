@@ -13,9 +13,9 @@ const FPS = 30;
 const W = 1080;
 const PAD = 28;
 const ROW = 128;
-const START = 0.4; // cuadro vacío antes del primer puesto
-const APPEAR = 0.25; // entrada de cada fila
-const END = 2.8; // ranking completo quieto
+const START = 0.2; // cuadro vacío antes del primer puesto
+const APPEAR = 0.2; // entrada de cada fila
+const END = 1.5; // ranking completo quieto
 const RATE = 48000; // audio
 
 const CARD = "#0d122c";
@@ -37,18 +37,21 @@ type Row = {
 
 // Tiempos de la animación: los tres primeros puestos van de uno en uno, con calma;
 // del cuarto en adelante aparecen casi seguidos.
-const SLOW = { step: 1.15, count: 0.6 }; // segundos por puesto y lo que tarda en contar
-const FAST = { step: 0.2, count: 0.3 };
+// El video completo dura menos de 5 segundos, sean cuantos sean los puestos.
+const SLOW = { step: 0.6, count: 0.38 }; // segundos por puesto y lo que tarda en contar
+const FAST = { step: 0.12, count: 0.25, budget: 1.0 }; // budget: lo máximo que ocupan todos los rápidos
 type Timing = { starts: number[]; counts: number[]; total: number };
 function timing(rows: Row[]): Timing {
   const starts: number[] = [];
   const counts: number[] = [];
+  const quick = rows.filter((r) => r.rank > 3).length;
+  const fastStep = Math.min(FAST.step, FAST.budget / Math.max(1, quick));
   let at = START;
   for (const r of rows) {
-    const pace = r.rank <= 3 ? SLOW : FAST;
+    const slow = r.rank <= 3;
     starts.push(at);
-    counts.push(pace.count);
-    at += pace.step;
+    counts.push(slow ? SLOW.count : FAST.count);
+    at += slow ? SLOW.step : fastStep;
   }
   // El último termina de contar antes de la pausa final
   const done = Math.max(at, ...rows.map((_, i) => starts[i] + APPEAR + counts[i]));
@@ -110,7 +113,7 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
 function draw(c: CanvasRenderingContext2D, rows: Row[], t: number, font: string, percent: boolean, clear: boolean) {
   const H = c.canvas.height;
   const { starts, counts, total } = timing(rows);
-  const ended = clamp((t - (total - END) - 0.2) / 0.4);
+  const ended = clamp((t - (total - END)) / 0.3);
   const set = (weight: number, size: number) => (c.font = `${weight} ${size}px ${font}`);
 
   if (clear) c.clearRect(0, 0, W, H);
@@ -298,10 +301,10 @@ async function renderAudio(rows: Row[]): Promise<AudioBuffer> {
     tone("sine", land + 0.02, 0.5, 1975.5 * high, 1975.5 * high, 0.18 * soft);
   });
   // Acorde final arpegiado
-  const fin = total - END + 0.2;
+  const fin = total - END + 0.05;
   [523.25, 659.25, 783.99, 1046.5].forEach((f, k) => {
-    tone("triangle", fin + k * 0.09, 1.4, f, f, 0.3);
-    tone("sine", fin + k * 0.09, 1.4, f * 2, f * 2, 0.08);
+    tone("triangle", fin + k * 0.08, 1.1, f, f, 0.3);
+    tone("sine", fin + k * 0.08, 1.1, f * 2, f * 2, 0.08);
   });
   return ctx.startRendering();
 }
