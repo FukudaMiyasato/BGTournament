@@ -163,7 +163,7 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
         {shown.map((s) => (
           <li key={s.player.id} data-flip={s.player.id} className={s.rank <= 3 ? `podio podio-${s.rank}` : ""}>
             {s.rank <= 3 ? <Laurel n={s.rank} /> : <span className="pos">{s.rank}</span>}
-            <Avatar player={s.player} size={56} badge />
+            <Avatar player={s.player} size={56} />
             <span className="name">
               <span className="who">
                 {s.player.name}
@@ -171,10 +171,9 @@ export function Ranking({ db, admin }: { db: DB; admin: boolean }) {
                   <em className="mvp" title={`Quien más ganó de su studio en los últimos ${MVP_DAYS} días`}>MVP</em>
                 )}
               </span>
-              <small>{s.played} {s.played === 1 ? "partida" : "partidas"}</small>
+              {s.player.studio && <StudioPill studio={s.player.studio} />}
             </span>
             <span className="tags">
-              {s.player.studio && <StudioPill studio={s.player.studio} />}
               {showChange && <Change now={s} prev={prevById.get(s.player.id)} />}
             </span>
             <span className="points">{s.text}<small> {s.unit}</small></span>
